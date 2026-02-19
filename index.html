@@ -313,34 +313,62 @@ function load(k){try{return JSON.parse(localStorage.getItem(k)||"{}")}catch{retu
 function save(k,d){try{localStorage.setItem(k,JSON.stringify(d))}catch{};cloudSave(k,d)}
 
 // ═══ CLOUD SYNC (Google Sheets backend) ═══
-// PEGA AQUÍ TU URL de Apps Script 👇
 const API_URL="https://script.google.com/macros/s/AKfycbwKuJkwFp3OlnxBqbLrajxqMM225yJhmuhVmTFgJQPfp19tE8ToeEGhJiDpFA3p0Rh5/exec";
-// Ejemplo: const API_URL="https://script.google.com/macros/s/AKfycbx.../exec";
 
 let syncing=false;
+let saveQueue={};
+let saveTimer=null;
+
+// Google Apps Script redirects (302), so we MUST use redirect:"follow"
+// For write, we send data as URL param to avoid CORS issues with POST+redirect
 async function cloudSave(key,data){
-  if(!API_URL||syncing)return;
-  syncing=true;
-  try{
-    const resp=await fetch(API_URL+"?action=write&key="+encodeURIComponent(key),{method:"POST",body:JSON.stringify(data),headers:{"Content-Type":"text/plain"}});
-    const json=await resp.json();
-    if(json.success&&json.data){try{localStorage.setItem(key,json.data)}catch{}}
-  }catch(e){console.log("Sync error:",e)}
-  syncing=false;
+  if(!API_URL)return;
+  // Debounce: wait 1s after last save to batch changes
+  saveQueue[key]=data;
+  if(saveTimer)clearTimeout(saveTimer);
+  saveTimer=setTimeout(async()=>{
+    const pending={...saveQueue};saveQueue={};
+    for(const k in pending){
+      try{
+        const encoded=encodeURIComponent(JSON.stringify(pending[k]));
+        const url=`${API_URL}?action=write&key=${encodeURIComponent(k)}&data=${encoded}`;
+        const resp=await fetch(url,{method:"GET",redirect:"follow"});
+        const json=await resp.json();
+        if(json.success&&json.data){try{localStorage.setItem(k,json.data)}catch{}}
+        updateSyncBadge("ok");
+      }catch(e){console.log("Cloud save error:",e);updateSyncBadge("error")}
+    }
+  },1000);
 }
+
 async function cloudLoad(key){
   if(!API_URL)return null;
   try{
-    const resp=await fetch(API_URL+"?action=read&key="+encodeURIComponent(key));
-    const json=await resp.json();
+    const url=`${API_URL}?action=read&key=${encodeURIComponent(key)}`;
+    const resp=await fetch(url,{method:"GET",redirect:"follow"});
+    const text=await resp.text();
+    let json;
+    try{json=JSON.parse(text)}catch{console.log("Parse error:",text);return null}
     if(json.success&&json.data){
-      const parsed=JSON.parse(json.data);
-      // Merge with local
+      let parsed;
+      try{parsed=JSON.parse(json.data)}catch{return null}
+      // Merge cloud into local
       const local=load(key);
       const merged={...local};
       for(const dk in parsed){
         if(!merged[dk])merged[dk]=parsed[dk];
-        else{for(const mk in parsed[dk]){merged[dk][mk]=parsed[dk][mk]}}
+        else{for(const mk in parsed[dk]){
+          // Cloud wins for cortes (more recent), merge at member level
+          if(parsed[dk][mk]&&typeof parsed[dk][mk]==="object"){
+            merged[dk][mk]={...merged[dk][mk],...parsed[dk][mk]};
+            // Merge cortes specifically
+            if(parsed[dk][mk].cortes&&merged[dk][mk].cortes){
+              merged[dk][mk].cortes={...merged[dk][mk].cortes,...parsed[dk][mk].cortes};
+            }
+          } else {
+            merged[dk][mk]=parsed[dk][mk];
+          }
+        }}
       }
       try{localStorage.setItem(key,JSON.stringify(merged))}catch{}
       return merged;
@@ -348,15 +376,34 @@ async function cloudLoad(key){
   }catch(e){console.log("Cloud load error:",e)}
   return null;
 }
+
+function updateSyncBadge(status){
+  const el=document.getElementById("sync-status");
+  if(!el)return;
+  if(status==="ok"){el.textContent="☁️ Sincronizado";el.style.color="var(--green)"}
+  else if(status==="loading"){el.textContent="🔄 Sincronizando...";el.style.color="var(--blue)"}
+  else if(status==="error"){el.textContent="❌ Error de sync";el.style.color="var(--fire)"}
+  else if(status==="offline"){el.textContent="📱 Solo local";el.style.color="var(--gold)"}
+}
+
 async function syncAll(){
-  if(!API_URL){document.getElementById("sync-status").textContent="⚠️ Sin conexión cloud";document.getElementById("sync-status").style.color="var(--gold)";return}
-  document.getElementById("sync-status").textContent="🔄 Sincronizando...";document.getElementById("sync-status").style.color="var(--blue)";
-  const t=await cloudLoad("ec-tracker");
-  const a=await cloudLoad("ec-avance");
-  document.getElementById("sync-status").textContent="☁️ Sincronizado";document.getElementById("sync-status").style.color="var(--green)";
-  // Re-render current tab
-  const activeTab=document.querySelector(".nav-btn.active");
-  if(activeTab){const tab=activeTab.dataset.tab;if(tab==="tracker")renderTracker();if(tab==="avance")renderAvance();}
+  if(!API_URL){updateSyncBadge("offline");return}
+  updateSyncBadge("loading");
+  try{
+    await cloudLoad("ec-tracker");
+    await cloudLoad("ec-avance");
+    updateSyncBadge("ok");
+    // Re-render current tab
+    const activeBtn=document.querySelector(".nav-btn.active");
+    if(activeBtn){
+      const tab=activeBtn.dataset.tab;
+      if(tab==="tracker")renderTracker();
+      if(tab==="avance")renderAvance();
+    }
+  }catch(e){
+    console.log("syncAll error:",e);
+    updateSyncBadge("error");
+  }
 }
 function toKey(d){return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`}
 function getMonday(d){const t=new Date(d),dy=t.getDay();t.setDate(t.getDate()-dy+(dy===0?-6:1));t.setHours(0,0,0,0);return t}
