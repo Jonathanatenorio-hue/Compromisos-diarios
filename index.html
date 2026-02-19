@@ -199,6 +199,10 @@ body{background:var(--dark);color:var(--white);font-family:'Outfit',sans-serif;m
   <button class="nav-btn" data-tab="avance" onclick="showTab('avance')">📈 AVANCE</button>
   <button class="nav-btn" data-tab="tracker" onclick="showTab('tracker')">📊 TRACKER</button>
 </nav>
+<div style="text-align:center;padding:6px;background:var(--dark2);border-bottom:1px solid var(--w10)">
+  <span id="sync-status" style="font-size:10px;color:var(--w30);letter-spacing:1px">⏳ Cargando...</span>
+  <button onclick="syncAll()" style="background:none;border:none;color:var(--blue);font-size:10px;cursor:pointer;margin-left:8px;font-family:'Outfit',sans-serif">🔄 Sync</button>
+</div>
 
 <!-- TAB 1: GENERATOR -->
 <div id="tab-generator" class="container">
@@ -306,7 +310,54 @@ const commits={};ALL.forEach(m=>commits[m.name]=0);
 let weekStart=getMonday(new Date()),selCorte=null;
 
 function load(k){try{return JSON.parse(localStorage.getItem(k)||"{}")}catch{return{}}}
-function save(k,d){try{localStorage.setItem(k,JSON.stringify(d))}catch{}}
+function save(k,d){try{localStorage.setItem(k,JSON.stringify(d))}catch{};cloudSave(k,d)}
+
+// ═══ CLOUD SYNC (Google Sheets backend) ═══
+// PEGA AQUÍ TU URL de Apps Script 👇
+const API_URL="https://script.google.com/macros/s/AKfycbwKuJkwFp3OlnxBqbLrajxqMM225yJhmuhVmTFgJQPfp19tE8ToeEGhJiDpFA3p0Rh5/exec";
+// Ejemplo: const API_URL="https://script.google.com/macros/s/AKfycbx.../exec";
+
+let syncing=false;
+async function cloudSave(key,data){
+  if(!API_URL||syncing)return;
+  syncing=true;
+  try{
+    const resp=await fetch(API_URL+"?action=write&key="+encodeURIComponent(key),{method:"POST",body:JSON.stringify(data),headers:{"Content-Type":"text/plain"}});
+    const json=await resp.json();
+    if(json.success&&json.data){try{localStorage.setItem(key,json.data)}catch{}}
+  }catch(e){console.log("Sync error:",e)}
+  syncing=false;
+}
+async function cloudLoad(key){
+  if(!API_URL)return null;
+  try{
+    const resp=await fetch(API_URL+"?action=read&key="+encodeURIComponent(key));
+    const json=await resp.json();
+    if(json.success&&json.data){
+      const parsed=JSON.parse(json.data);
+      // Merge with local
+      const local=load(key);
+      const merged={...local};
+      for(const dk in parsed){
+        if(!merged[dk])merged[dk]=parsed[dk];
+        else{for(const mk in parsed[dk]){merged[dk][mk]=parsed[dk][mk]}}
+      }
+      try{localStorage.setItem(key,JSON.stringify(merged))}catch{}
+      return merged;
+    }
+  }catch(e){console.log("Cloud load error:",e)}
+  return null;
+}
+async function syncAll(){
+  if(!API_URL){document.getElementById("sync-status").textContent="⚠️ Sin conexión cloud";document.getElementById("sync-status").style.color="var(--gold)";return}
+  document.getElementById("sync-status").textContent="🔄 Sincronizando...";document.getElementById("sync-status").style.color="var(--blue)";
+  const t=await cloudLoad("ec-tracker");
+  const a=await cloudLoad("ec-avance");
+  document.getElementById("sync-status").textContent="☁️ Sincronizado";document.getElementById("sync-status").style.color="var(--green)";
+  // Re-render current tab
+  const activeTab=document.querySelector(".nav-btn.active");
+  if(activeTab){const tab=activeTab.dataset.tab;if(tab==="tracker")renderTracker();if(tab==="avance")renderAvance();}
+}
 function toKey(d){return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`}
 function getMonday(d){const t=new Date(d),dy=t.getDay();t.setDate(t.getDate()-dy+(dy===0?-6:1));t.setHours(0,0,0,0);return t}
 function weekDays(s){return Array.from({length:6},(_,i)=>{const d=new Date(s);d.setDate(s.getDate()+i);return d})}
@@ -365,9 +416,11 @@ function renderAvance(){
   const ch=now.getHours();
   if(!selCorte){if(ch<11)selCorte="11:00";else if(ch>=19)selCorte="19:00+";else{selCorte=ch+":00";if(!CORTES.includes(selCorte))selCorte=CORTES[0]}}
 
-  // Corte buttons
+  // Corte buttons — helper to count excluding coordinadores
+  const coordNames=new Set(TEAM.coordinadores);
+  function corteCount(c){let cnt=0;ALL.forEach(m=>{const d=dd[m.name];if(d&&!coordNames.has(m.name)&&d.cortes?.[c])cnt+=d.cortes[c]});return cnt}
   const sel=document.getElementById("corte-selector");sel.innerHTML="";
-  CORTES.forEach(c=>{let cnt=0;Object.values(dd).forEach(m=>{if(m.cortes?.[c])cnt+=m.cortes[c]});
+  CORTES.forEach(c=>{const cnt=corteCount(c);
     const b=document.createElement("button");b.className=`corte-btn ${c===selCorte?"active":""}`;b.onclick=()=>{selCorte=c;renderAvance()};b.innerHTML=`${c}<span class="cc">${cnt}</span>`;sel.appendChild(b)});
 
   // Totals
@@ -401,7 +454,7 @@ function renderAvance(){
 
   // Timeline
   const tl=document.getElementById("hour-timeline");tl.innerHTML=`<div style="font-family:'Bebas Neue',sans-serif;font-size:16px;color:var(--w50);letter-spacing:2px;margin-bottom:10px">LÍNEA DE TIEMPO</div>`;
-  CORTES.forEach(c=>{let cnt=0;Object.values(dd).forEach(m=>{if(m.cortes?.[c])cnt+=m.cortes[c]});
+  CORTES.forEach(c=>{const cnt=corteCount(c);
     const isA=c===selCorte;let dots="";for(let i=0;i<Math.min(cnt,40);i++)dots+=`<div class="hour-dot" style="background:var(--green)"></div>`;
     if(cnt===0)for(let i=0;i<3;i++)dots+=`<div class="hour-dot" style="background:var(--w10)"></div>`;
     tl.innerHTML+=`<div class="hour-row" style="${isA?"background:rgba(0,221,119,0.03);border-radius:8px;padding:10px;margin:0 -10px":""}"><div class="hour-label ${isA?"hl-active":""}">${c}</div><div class="hour-dots">${dots}</div><div style="font-family:'Bebas Neue',sans-serif;font-size:16px;min-width:30px;text-align:right;color:${cnt>0?"var(--green)":"var(--w20)"}">${cnt}</div></div>`;
@@ -480,7 +533,7 @@ function shareAvance(){
   // Cortes summary row
   h+=`<div style="display:flex;gap:4px;margin-top:14px;justify-content:center;flex-wrap:wrap">`;
   CORTES.forEach(c=>{
-    let cnt=0;Object.values(dd).forEach(m=>{if(m.cortes?.[c])cnt+=m.cortes[c]});
+    let cnt=0;const cNames=new Set(TEAM.coordinadores);ALL.forEach(m=>{const d=dd[m.name];if(d&&!cNames.has(m.name)&&d.cortes?.[c])cnt+=d.cortes[c]});
     const isActive=c===selCorte;
     h+=`<div style="text-align:center;padding:4px 8px;border-radius:8px;font-size:8px;letter-spacing:.5px;
       ${isActive?"background:#00DD77;color:#0A0A12;font-weight:800":"background:#15151F;color:#4D4D4D;border:1px solid #252535"}">
@@ -655,7 +708,7 @@ function shareTracker(){
   },100);
 }
 
-buildInputs();updClock();
+buildInputs();updClock();syncAll();
 </script>
 </body>
 </html>
