@@ -311,53 +311,39 @@ const commits={};ALL.forEach(m=>commits[m.name]=0);
 let weekStart=getMonday(new Date()),selCorte=null;
 
 function load(k){try{return JSON.parse(localStorage.getItem(k)||"{}")}catch{return{}}}
-function save(k,d){try{localStorage.setItem(k,JSON.stringify(d))}catch{};cloudSave(k,d)}
+async function save(k,d){try{localStorage.setItem(k,JSON.stringify(d))}catch{};await cloudSave(k,d)}
 
 // ═══ CLOUD SYNC (Google Sheets via iframe POST + fetch GET) ═══
 const API_URL="https://script.google.com/macros/s/AKfycbwKuJkwFp3OlnxBqbLrajxqMM225yJhmuhVmTFgJQPfp19tE8ToeEGhJiDpFA3p0Rh5/exec";
 
-let saveQueue={},saveTimer=null;
+let saving=false;
 
-function cloudSave(key,data){
+async function cloudSave(key,data){
   if(!API_URL)return;
-  saveQueue[key]=data;
-  if(saveTimer)clearTimeout(saveTimer);
-  saveTimer=setTimeout(async()=>{
-    const pending={...saveQueue};saveQueue={};
-    for(const k in pending){
-      try{
-        updateSyncBadge("loading");
-        const payload=encodeURIComponent(JSON.stringify(pending[k]));
-        
-        // Send write via GET (most reliable with Apps Script redirects)
-        // Split if too long for URL (>7000 chars)
-        const url=`${API_URL}?action=write&key=${encodeURIComponent(k)}&data=${payload}&t=${Date.now()}`;
-        if(url.length<7500){
-          // GET approach — works because doGet handles writes too
-          try{
-            const resp=await fetch(url,{redirect:"follow"});
-            const text=await resp.text();
-            try{
-              const json=JSON.parse(text);
-              if(json.success){updateSyncBadge("ok");continue}
-            }catch{}
-          }catch{}
-        }
-        
-        // Fallback: POST with no-cors + verify with read
-        await fetch(API_URL,{
-          method:"POST",mode:"no-cors",
-          headers:{"Content-Type":"application/x-www-form-urlencoded"},
-          body:"action=write&key="+encodeURIComponent(k)+"&data="+payload
-        });
-        await new Promise(r=>setTimeout(r,1500));
-        await cloudLoad(k);
+  if(saving){
+    // Queue for after current save finishes
+    setTimeout(()=>cloudSave(key,data),500);
+    return;
+  }
+  saving=true;
+  updateSyncBadge("loading");
+  try{
+    const payload=encodeURIComponent(JSON.stringify(data));
+    const url=`${API_URL}?action=write&key=${encodeURIComponent(key)}&data=${payload}&t=${Date.now()}`;
+    const resp=await fetch(url,{redirect:"follow"});
+    const text=await resp.text();
+    try{
+      const json=JSON.parse(text);
+      if(json.success){
+        // Update local with server merged data
+        if(json.data)try{localStorage.setItem(key,json.data)}catch{}
         updateSyncBadge("ok");
-      }catch(e){
-        console.log("Save err:",e);updateSyncBadge("error");
+      }else{
+        console.log("Write fail:",json.error);updateSyncBadge("error");
       }
-    }
-  },800);
+    }catch{console.log("Parse fail:",text.substring(0,200));updateSyncBadge("error")}
+  }catch(e){console.log("Save err:",e);updateSyncBadge("error")}
+  saving=false;
 }
 
 async function cloudLoad(key){
@@ -480,7 +466,7 @@ function updTotals(){
   let gt=0;["supervisores","coordinadores","capacitadores"].forEach(g=>{let s=0;TEAM[g].forEach(n=>s+=commits[n]);document.getElementById(g==="supervisores"?"total-sup":g==="coordinadores"?"total-coord":"total-cap").textContent=s+" ventas";if(g!=="coordinadores")gt+=s});
   document.getElementById("grand-total").textContent=gt;document.getElementById("btn-gen").disabled=gt===0;
 }
-function generate(){
+async function generate(){
   const now=new Date(),gt=+document.getElementById("grand-total").textContent;
   document.getElementById("poster-date").textContent=fmtDate(now);
   document.getElementById("poster-total").textContent=gt;
@@ -496,7 +482,7 @@ function generate(){
   const dk=toKey(now),tr=load("ec-tracker"),av=load("ec-avance");
   if(!tr[dk])tr[dk]={};if(!av[dk])av[dk]={};
   ALL.forEach(m=>{if(commits[m.name]>0){tr[dk][m.name]={committed:commits[m.name],met:tr[dk]?.[m.name]?.met||false};if(!av[dk][m.name])av[dk][m.name]={committed:commits[m.name],cortes:{}}}});
-  save("ec-tracker",tr);save("ec-avance",av);
+  await save("ec-tracker",tr);await save("ec-avance",av);
   document.getElementById("input-view").classList.add("hidden");document.getElementById("poster-view").classList.remove("hidden");
   showToast("✅ Compromiso guardado");
 }
@@ -593,7 +579,7 @@ function renderAvance(){
   });
 }
 
-function saveAllCortes(dk){
+async function saveAllCortes(dk){
   const av=load("ec-avance");if(!av[dk])return;
   const tr=load("ec-tracker");
   let count=0;
@@ -610,9 +596,10 @@ function saveAllCortes(dk){
     if(tr[dk]?.[m.name]){tr[dk][m.name].met=lastAcum>=tr[dk][m.name].committed}
     if(val>0)count++;
   });
-  save("ec-avance",av);save("ec-tracker",tr);
+  await save("ec-avance",av);
+  await save("ec-tracker",tr);
   renderAvance();
-  showToast(`✅ Corte ${selCorte} guardado — ${count} registros`);
+  showToast(`✅ Corte ${selCorte} guardado y sincronizado — ${count} registros`);
 }
 
 function updClock(){const n=new Date(),el=document.getElementById("live-clock");if(el)el.textContent=String(n.getHours()).padStart(2,"0")+":"+String(n.getMinutes()).padStart(2,"0")}
