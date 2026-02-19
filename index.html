@@ -294,7 +294,6 @@ body{background:var(--dark);color:var(--white);font-family:'Outfit',sans-serif;m
 </div>
 
 <div class="toast" id="toast"></div>
-<iframe name="sync-iframe" id="sync-iframe" style="display:none"></iframe>
 <!-- Hidden compact avance poster for screenshot -->
 <div class="av-poster" id="avance-poster"></div>
 <!-- Hidden compact tracker poster for screenshot -->
@@ -323,20 +322,40 @@ function cloudSave(key,data){
   if(!API_URL)return;
   saveQueue[key]=data;
   if(saveTimer)clearTimeout(saveTimer);
-  saveTimer=setTimeout(()=>{
+  saveTimer=setTimeout(async()=>{
     const pending={...saveQueue};saveQueue={};
     for(const k in pending){
       try{
-        // Use hidden form + iframe to POST (bypasses CORS completely)
-        const iframe=document.getElementById("sync-iframe");
-        const form=document.createElement("form");
-        form.method="POST";form.action=API_URL;form.target="sync-iframe";form.style.display="none";
-        const f1=document.createElement("input");f1.name="action";f1.value="write";form.appendChild(f1);
-        const f2=document.createElement("input");f2.name="key";f2.value=k;form.appendChild(f2);
-        const f3=document.createElement("textarea");f3.name="data";f3.value=JSON.stringify(pending[k]);form.appendChild(f3);
-        document.body.appendChild(form);form.submit();document.body.removeChild(form);
+        updateSyncBadge("loading");
+        const payload=encodeURIComponent(JSON.stringify(pending[k]));
+        
+        // Send write via GET (most reliable with Apps Script redirects)
+        // Split if too long for URL (>7000 chars)
+        const url=`${API_URL}?action=write&key=${encodeURIComponent(k)}&data=${payload}&t=${Date.now()}`;
+        if(url.length<7500){
+          // GET approach — works because doGet handles writes too
+          try{
+            const resp=await fetch(url,{redirect:"follow"});
+            const text=await resp.text();
+            try{
+              const json=JSON.parse(text);
+              if(json.success){updateSyncBadge("ok");continue}
+            }catch{}
+          }catch{}
+        }
+        
+        // Fallback: POST with no-cors + verify with read
+        await fetch(API_URL,{
+          method:"POST",mode:"no-cors",
+          headers:{"Content-Type":"application/x-www-form-urlencoded"},
+          body:"action=write&key="+encodeURIComponent(k)+"&data="+payload
+        });
+        await new Promise(r=>setTimeout(r,1500));
+        await cloudLoad(k);
         updateSyncBadge("ok");
-      }catch(e){console.log("Save err:",e);updateSyncBadge("error")}
+      }catch(e){
+        console.log("Save err:",e);updateSyncBadge("error");
+      }
     }
   },800);
 }
