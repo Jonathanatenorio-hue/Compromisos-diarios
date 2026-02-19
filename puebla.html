@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0A0A12">
-<title>ExpertCell - Compromiso del Día</title>
+<title>ExpertCell Puebla - Compromiso del Día</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔥</text></svg>">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@300;500;700;900&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -229,7 +229,7 @@ body{background:var(--dark);color:var(--white);font-family:'Outfit',sans-serif;m
       <div id="poster-sections"></div>
       <div class="pbar-wrap"><div class="pbar-labels"><span>0 VENTAS</span><span id="poster-bar-label">META: 0</span></div><div class="pbar"><div class="pbar-fill"></div></div></div>
       <div class="mot-box"><div class="mq">"HOY NO SE TRATA DE PODER.<br>SE TRATA DE QUERER.<br><span class="gold">Y USTEDES YA DIJERON: ¡YO QUIERO!"</span></div><div class="ms">Cada venta cuenta. Cada uno de ustedes cuenta. 💪</div></div>
-      <div class="footer-text">EXPERTCELL — EQUIPO AT&T · PALABRA DE CAMPEONES</div>
+      <div class="footer-text">EXPERTCELL PUEBLA — EQUIPO AT&T · PALABRA DE CAMPEONES</div>
     </div>
     <div class="btn-row">
       <button class="btn-secondary" onclick="backToEdit()">← EDITAR</button>
@@ -249,14 +249,15 @@ body{background:var(--dark);color:var(--white);font-family:'Outfit',sans-serif;m
   </div>
   <div class="corte-selector" id="corte-selector"></div>
   <div id="avance-share-area">
-  <div class="avance-summary">
-    <div class="av-card"><div class="av-label">COMPROMETIDAS</div><div class="av-num" id="av-committed" style="color:var(--fire)">0</div></div>
-    <div class="av-card" style="position:relative"><div class="av-label">REALIZADAS</div><div class="av-num" id="av-done" style="color:var(--green)">0</div><div class="av-bar" id="av-bar-done" style="background:var(--green);width:0%"></div></div>
+  <div class="avance-summary" style="grid-template-columns:repeat(4,1fr)">
+    <div class="av-card"><div class="av-label">META</div><div class="av-num" id="av-committed" style="color:var(--fire)">0</div></div>
+    <div class="av-card" style="position:relative"><div class="av-label">HECHAS</div><div class="av-num" id="av-done" style="color:var(--green)">0</div><div class="av-bar" id="av-bar-done" style="background:var(--green);width:0%"></div></div>
     <div class="av-card"><div class="av-label">FALTAN</div><div class="av-num" id="av-remaining" style="color:var(--gold)">0</div></div>
+    <div class="av-card" style="position:relative"><div class="av-label">PROYECCIÓN</div><div class="av-num" id="av-projection" style="color:var(--blue)">-</div><div class="av-bar" id="av-bar-proj" style="background:var(--blue);width:0%"></div></div>
   </div>
   <div id="avance-members"></div>
   <div id="hour-timeline" style="margin-top:20px"></div>
-  <div class="app-footer" style="margin-top:24px">EXPERTCELL — AVANCE EN TIEMPO REAL AT&T</div>
+  <div class="app-footer" style="margin-top:24px">EXPERTCELL PUEBLA — AVANCE AT&T</div>
   </div>
   <div style="margin-top:16px">
     <button class="btn-primary" style="width:100%" onclick="shareAvance()">📱 DESCARGAR IMAGEN DEL AVANCE</button>
@@ -277,7 +278,7 @@ body{background:var(--dark);color:var(--white);font-family:'Outfit',sans-serif;m
     <div class="summary-card"><div class="sc-label">% CUMPLIMIENTO</div><div class="sc-num" id="wk-pct">0%</div></div>
   </div>
   <div class="table-wrap"><table id="tracker-table"></table></div>
-  <div class="app-footer" style="margin-top:12px">EXPERTCELL — TRACKER DE CUMPLIMIENTO AT&T</div>
+  <div class="app-footer" style="margin-top:12px">EXPERTCELL PUEBLA — TRACKER AT&T</div>
   </div>
   <div style="margin-top:16px">
     <button class="btn-primary" style="width:100%;background:linear-gradient(135deg,var(--gold),var(--fire))" onclick="shareTracker()">📱 DESCARGAR IMAGEN DEL TRACKER</button>
@@ -289,7 +290,7 @@ body{background:var(--dark);color:var(--white);font-family:'Outfit',sans-serif;m
     <div class="legend-item"><span style="color:var(--gold);font-weight:900">50%+</span><span>Regular</span></div>
     <div class="legend-item"><span style="color:var(--fire);font-weight:900">&lt;50%</span><span>Bajo</span></div>
   </div>
-  <div class="app-footer">EXPERTCELL — TRACKER DE CUMPLIMIENTO AT&T</div>
+  <div class="app-footer">EXPERTCELL PUEBLA — TRACKER AT&T</div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -386,14 +387,31 @@ function updateSyncBadge(s){
 }
 
 async function syncAll(){
-  if(!API_URL){updateSyncBadge("offline");return}
+  if(!API_URL){updateSyncBadge("offline");loadTodayCommit();return}
   updateSyncBadge("loading");
   try{
     await cloudLoad("ec-tracker");await cloudLoad("ec-avance");
     updateSyncBadge("ok");
+    loadTodayCommit();
     const ab=document.querySelector(".nav-btn.active");
     if(ab){const t=ab.dataset.tab;if(t==="tracker")renderTracker();if(t==="avance")renderAvance()}
-  }catch(e){console.log("syncAll err:",e);updateSyncBadge("error")}
+  }catch(e){console.log("syncAll err:",e);updateSyncBadge("error");loadTodayCommit()}
+}
+
+// Auto-load today's commitment from stored data
+function loadTodayCommit(){
+  const dk=toKey(new Date()),tr=load("ec-tracker");
+  if(!tr[dk])return;
+  let loaded=false;
+  ALL.forEach(m=>{
+    if(tr[dk][m.name]&&tr[dk][m.name].committed>0){
+      commits[m.name]=tr[dk][m.name].committed;
+      const inp=document.getElementById("inp-"+m.name.replace(/[^a-zA-Z]/g,""));
+      if(inp)inp.value=commits[m.name];
+      loaded=true;
+    }
+  });
+  if(loaded)updTotals();
 }
 function toKey(d){return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`}
 function getMonday(d){const t=new Date(d),dy=t.getDay();t.setDate(t.getDate()-dy+(dy===0?-6:1));t.setHours(0,0,0,0);return t}
@@ -402,6 +420,26 @@ function fmtDate(d){return`${DAYS_ES[d.getDay()]} ${d.getDate()} DE ${MO_ES[d.ge
 function pctClr(p){return p>=80?"var(--green)":p>=50?"var(--gold)":"var(--fire)"}
 function gClr(g){return GM[g].clr}
 function showToast(m){const t=document.getElementById("toast");t.textContent=m;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),2500)}
+
+// Projection: rate per hour × total hours (9: 10am-7pm)
+function calcProjection(dd,totalDone){
+  // Find last corte with any data
+  const TOTAL_HOURS=9; // 10am to 7pm
+  const corteHours={"11:00":1,"12:00":2,"13:00":3,"14:00":4,"15:00":5,"16:00":6,"17:00":7,"18:00":8,"19:00+":9};
+  let lastCorte=null;
+  const coordSet=new Set(TEAM.coordinadores);
+  for(let i=CORTES.length-1;i>=0;i--){
+    const c=CORTES[i];
+    let hasData=false;
+    ALL.forEach(m=>{const d=dd[m.name];if(d&&!coordSet.has(m.name)&&d.cortes&&d.cortes[c])hasData=true});
+    if(hasData){lastCorte=c;break}
+  }
+  if(!lastCorte||!corteHours[lastCorte])return null;
+  const hoursElapsed=corteHours[lastCorte];
+  if(hoursElapsed<=0||totalDone<=0)return null;
+  const rate=totalDone/hoursElapsed;
+  return Math.round(rate*TOTAL_HOURS);
+}
 
 function showTab(tab){
   ["generator","avance","tracker"].forEach(t=>document.getElementById("tab-"+t).classList.toggle("hidden",t!==tab));
@@ -415,7 +453,7 @@ function buildInputs(){
   ["supervisores","coordinadores","capacitadores"].forEach(g=>{
     const gid=g==="supervisores"?"grid-sup":g==="coordinadores"?"grid-coord":"grid-cap";
     const el=document.getElementById(gid);el.innerHTML="";
-    TEAM[g].forEach(n=>{const c=document.createElement("div");c.className=`input-card ${GM[g].ic}`;c.innerHTML=`<div class="name">${n.toUpperCase()}</div><input type="text" inputmode="numeric" placeholder="0" oninput="onCI('${n}',this.value)">`;el.appendChild(c)});
+    TEAM[g].forEach(n=>{const c=document.createElement("div");c.className=`input-card ${GM[g].ic}`;c.innerHTML=`<div class="name">${n.toUpperCase()}</div><input type="text" inputmode="numeric" placeholder="0" oninput="onCI('${n}',this.value)" id="inp-${n.replace(/[^a-zA-Z]/g,"")}">`;el.appendChild(c)});
   });
 }
 function onCI(n,v){commits[n]=parseInt(v.replace(/\D/g,""))||0;updTotals()}
@@ -453,18 +491,45 @@ function renderAvance(){
   const ch=now.getHours();
   if(!selCorte){if(ch<11)selCorte="11:00";else if(ch>=19)selCorte="19:00+";else{selCorte=ch+":00";if(!CORTES.includes(selCorte))selCorte=CORTES[0]}}
 
-  // Corte buttons — helper to count excluding coordinadores
+  // Corte buttons — ACUMULADO logic helpers
   const coordNames=new Set(TEAM.coordinadores);
-  function corteCount(c){let cnt=0;ALL.forEach(m=>{const d=dd[m.name];if(d&&!coordNames.has(m.name)&&d.cortes?.[c])cnt+=d.cortes[c]});return cnt}
+  // Total done = last (highest) acumulado reported
+  function getMemberDone(md){
+    if(!md||!md.cortes)return 0;
+    let last=0;
+    CORTES.forEach(c=>{if(md.cortes[c]!==undefined&&md.cortes[c]!==null&&md.cortes[c]!=="")last=md.cortes[c]});
+    return last;
+  }
+  // New sales in a specific corte = acumulado[corte] - acumulado[previous corte]
+  function getCorteNew(md,corte){
+    if(!md||!md.cortes||!md.cortes[corte])return 0;
+    const idx=CORTES.indexOf(corte);
+    let prev=0;
+    for(let i=idx-1;i>=0;i--){if(md.cortes[CORTES[i]]!==undefined&&md.cortes[CORTES[i]]!==null){prev=md.cortes[CORTES[i]];break}}
+    return Math.max(0,md.cortes[corte]-prev);
+  }
+  // Count new sales in a corte excluding coordinadores
+  function corteCount(c){let cnt=0;ALL.forEach(m=>{const d=dd[m.name];if(d&&!coordNames.has(m.name))cnt+=getCorteNew(d,c)});return cnt}
   const sel=document.getElementById("corte-selector");sel.innerHTML="";
   CORTES.forEach(c=>{const cnt=corteCount(c);
     const b=document.createElement("button");b.className=`corte-btn ${c===selCorte?"active":""}`;b.onclick=()=>{selCorte=c;renderAvance()};b.innerHTML=`${c}<span class="cc">${cnt}</span>`;sel.appendChild(b)});
 
   // Totals
   let tCom=0,tDone=0;
-  ALL.forEach(m=>{const d=dd[m.name];if(d&&m.group!=="coordinadores"){tCom+=d.committed||0;if(d.cortes)Object.values(d.cortes).forEach(v=>tDone+=v)}});
+  ALL.forEach(m=>{const d=dd[m.name];if(d&&m.group!=="coordinadores"){tCom+=d.committed||0;tDone+=getMemberDone(d)}});
   document.getElementById("av-committed").textContent=tCom;document.getElementById("av-done").textContent=tDone;document.getElementById("av-remaining").textContent=Math.max(0,tCom-tDone);
   document.getElementById("av-bar-done").style.width=(tCom>0?Math.min(100,Math.round(tDone/tCom*100)):0)+"%";
+
+  // Projection: find last corte with data, calc rate, project to end (9 hrs: 10am-7pm)
+  const proj=calcProjection(dd,tDone);
+  const projEl=document.getElementById("av-projection");
+  const projBar=document.getElementById("av-bar-proj");
+  if(proj!==null){
+    projEl.textContent=proj;
+    projEl.style.color=proj>=tCom?"var(--green)":proj>=tCom*0.7?"var(--gold)":"var(--fire)";
+    projBar.style.width=(tCom>0?Math.min(100,Math.round(proj/tCom*100)):0)+"%";
+    projBar.style.background=proj>=tCom?"var(--green)":proj>=tCom*0.7?"var(--gold)":"var(--fire)";
+  }else{projEl.textContent="-";projBar.style.width="0%"}
 
   // Members
   const mel=document.getElementById("avance-members");mel.innerHTML="";
@@ -474,7 +539,7 @@ function renderAvance(){
     const gm=GM[g],ic=g==="supervisores"?"icon-sup":g==="coordinadores"?"icon-coord":"icon-cap";
     mel.innerHTML+=`<div class="section-head" style="margin-top:16px;margin-bottom:8px"><div class="section-icon ${ic}" style="width:24px;height:24px;font-size:12px">${gm.icon}</div><span class="section-label" style="font-size:14px">${g.toUpperCase()}</span></div>`;
     active.forEach(name=>{
-      const md=dd[name],com=md.committed||0;let done=0;if(md.cortes)Object.values(md.cortes).forEach(v=>done+=v);
+      const md=dd[name],com=md.committed||0;let done=getMemberDone(md);
       const left=Math.max(0,com-done),pct=com>0?Math.min(100,Math.round(done/com*100)):0;
       const cv=md.cortes?.[selCorte]||"",clr=gClr(g);
       const sc=pct>=100?"var(--green)":pct>=50?"var(--gold)":"var(--fire)";
@@ -487,7 +552,7 @@ function renderAvance(){
             <div class="av-mem-nums" style="margin-top:4px"><span>Meta: <b style="color:var(--white)">${com}</b></span><span>Hechas: <b style="color:var(--green)">${done}</b></span><span>Faltan: <b style="color:${left>0?"var(--gold)":"var(--green)"}">${left}</b></span></div>
           </div>
           <div style="text-align:center;min-width:60px">
-            <div style="font-size:8px;color:var(--w30);margin-bottom:4px">${selCorte}</div>
+            <div style="font-size:8px;color:var(--w30);margin-bottom:4px">ACUM ${selCorte}</div>
             <input class="av-input" type="text" inputmode="numeric" placeholder="0" value="${cv||""}" id="avi-${name.replace(/[^a-zA-Z]/g,"")}" style="width:56px;padding:8px 4px;font-size:18px;font-weight:700;border-radius:10px">
           </div>
         </div>`;
@@ -496,7 +561,7 @@ function renderAvance(){
   });
   // Global save button
   if(hasData){
-    mel.innerHTML+=`<button class="av-save-btn" onclick="saveAllCortes('${dk}')" style="width:100%;padding:14px;border-radius:14px;margin-top:14px;font-size:15px;letter-spacing:1px">💾 GUARDAR CORTE ${selCorte}</button>`;
+    mel.innerHTML+=`<button class="av-save-btn" onclick="saveAllCortes('${dk}')" style="width:100%;padding:14px;border-radius:14px;margin-top:14px;font-size:15px;letter-spacing:1px">💾 GUARDAR ACUMULADO ${selCorte}</button>`;
   }
   if(!hasData)mel.innerHTML=`<div style="text-align:center;padding:40px 20px;color:var(--w30)"><div style="font-size:40px;margin-bottom:12px">📋</div><div style="font-size:14px;font-weight:700;margin-bottom:6px">No hay compromiso para hoy</div><div style="font-size:12px">Ve a 🔥 COMPROMISO y genera el compromiso del día primero.</div></div>`;
 
@@ -520,9 +585,10 @@ function saveAllCortes(dk){
     const val=parseInt(inp.value.replace(/\D/g,""))||0;
     if(!av[dk][m.name].cortes)av[dk][m.name].cortes={};
     av[dk][m.name].cortes[selCorte]=val;
-    // Auto-check tracker
-    let td=0;Object.values(av[dk][m.name].cortes).forEach(v=>td+=v);
-    if(tr[dk]?.[m.name]){tr[dk][m.name].met=td>=tr[dk][m.name].committed}
+    // Auto-check tracker: last acumulado >= committed
+    let lastAcum=0;
+    CORTES.forEach(c=>{if(av[dk][m.name].cortes[c]!==undefined&&av[dk][m.name].cortes[c]!==null)lastAcum=av[dk][m.name].cortes[c]});
+    if(tr[dk]?.[m.name]){tr[dk][m.name].met=lastAcum>=tr[dk][m.name].committed}
     if(val>0)count++;
   });
   save("ec-avance",av);save("ec-tracker",tr);
@@ -538,12 +604,17 @@ function shareAvance(){
   const now=new Date(),dk=toKey(now),av=load("ec-avance"),dd=av[dk]||{};
   const poster=document.getElementById("avance-poster");
 
-  // Calc totals
+  // Calc totals — acumulado: last corte = total done
   let tCom=0,tDone=0;
-  ALL.forEach(m=>{const d=dd[m.name];if(d&&m.group!=="coordinadores"){tCom+=d.committed||0;if(d.cortes)Object.values(d.cortes).forEach(v=>tDone+=v)}});
+  const coordSet=new Set(TEAM.coordinadores);
+  function _getDone(md){if(!md||!md.cortes)return 0;let l=0;CORTES.forEach(c=>{if(md.cortes[c]!=null)l=md.cortes[c]});return l}
+  function _getNew(md,corte){if(!md||!md.cortes||!md.cortes[corte])return 0;const idx=CORTES.indexOf(corte);let p=0;for(let i=idx-1;i>=0;i--){if(md.cortes[CORTES[i]]!=null){p=md.cortes[CORTES[i]];break}}return Math.max(0,md.cortes[corte]-p)}
+  ALL.forEach(m=>{const d=dd[m.name];if(d&&!coordSet.has(m.name)){tCom+=d.committed||0;tDone+=_getDone(d)}});
   const remaining=Math.max(0,tCom-tDone);
   const globalPct=tCom>0?Math.min(100,Math.round(tDone/tCom*100)):0;
   const barClr=globalPct>=80?"#00DD77":globalPct>=50?"#FFB800":"#FF4D00";
+  const proj=calcProjection(dd,tDone);
+  const projClr=proj!==null?(proj>=tCom?"#00DD77":proj>=tCom*0.7?"#FFB800":"#FF4D00"):"#333";
 
   // Header
   let h=`<div class="avp-badge"><span>${fmtDate(now)} · CORTE ${selCorte||""}</span></div>`;
@@ -551,10 +622,11 @@ function shareAvance(){
   h+=`<div class="avp-sub">ExpertCell AT&T · <b>${globalPct}% completado</b></div>`;
 
   // Summary cards
-  h+=`<div class="avp-summary">
+  h+=`<div class="avp-summary" style="grid-template-columns:repeat(4,1fr)">
     <div class="avp-scard"><div class="avp-sl">META</div><div class="avp-sn" style="color:#FF4D00">${tCom}</div></div>
     <div class="avp-scard"><div class="avp-sl">HECHAS</div><div class="avp-sn" style="color:#00DD77">${tDone}</div></div>
     <div class="avp-scard"><div class="avp-sl">FALTAN</div><div class="avp-sn" style="color:#FFB800">${remaining}</div></div>
+    <div class="avp-scard"><div class="avp-sl">PROYECCIÓN</div><div class="avp-sn" style="color:${projClr}">${proj!==null?proj:"-"}</div></div>
   </div>`;
 
   // Progress bar
@@ -573,7 +645,7 @@ function shareAvance(){
 
     active.forEach(name=>{
       const md=dd[name],com=md.committed||0;
-      let done=0;if(md.cortes)Object.values(md.cortes).forEach(v=>done+=v);
+      const done=_getDone(md);
       const left=Math.max(0,com-done);
       const pct=com>0?Math.min(100,Math.round(done/com*100)):0;
       const sc=pct>=100?"#00DD77":pct>=50?"#FFB800":"#FF4D00";
@@ -590,7 +662,7 @@ function shareAvance(){
   // Cortes summary row
   h+=`<div style="display:flex;gap:4px;margin-top:14px;justify-content:center;flex-wrap:wrap">`;
   CORTES.forEach(c=>{
-    let cnt=0;const cNames=new Set(TEAM.coordinadores);ALL.forEach(m=>{const d=dd[m.name];if(d&&!cNames.has(m.name)&&d.cortes?.[c])cnt+=d.cortes[c]});
+    let cnt=0;ALL.forEach(m=>{const d=dd[m.name];if(d&&!coordSet.has(m.name))cnt+=_getNew(d,c)});
     const isActive=c===selCorte;
     h+=`<div style="text-align:center;padding:4px 8px;border-radius:8px;font-size:8px;letter-spacing:.5px;
       ${isActive?"background:#00DD77;color:#0A0A12;font-weight:800":"background:#15151F;color:#4D4D4D;border:1px solid #252535"}">
@@ -599,7 +671,7 @@ function shareAvance(){
   });
   h+=`</div>`;
 
-  h+=`<div class="avp-footer">EXPERTCELL — AVANCE EN TIEMPO REAL AT&T · PALABRA DE CAMPEONES</div>`;
+  h+=`<div class="avp-footer">EXPERTCELL PUEBLA — AVANCE AT&T · PALABRA DE CAMPEONES</div>`;
 
   poster.innerHTML=h;
 
@@ -748,7 +820,7 @@ function shareTracker(){
     });
   });
 
-  h+=`<div class="avp-footer">EXPERTCELL — TRACKER DE CUMPLIMIENTO AT&T · PALABRA DE CAMPEONES</div>`;
+  h+=`<div class="avp-footer">EXPERTCELL PUEBLA — TRACKER AT&T · PALABRA DE CAMPEONES</div>`;
   poster.innerHTML=h;
 
   poster.style.position="fixed";poster.style.left="0";poster.style.top="0";poster.style.zIndex="-1";poster.style.opacity="1";
