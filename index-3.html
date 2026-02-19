@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0A0A12">
+<title>ExpertCell - Compromiso del Día</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔥</text></svg>">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@300;500;700;900&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+:root {
+  --fire:#FF4D00; --fire-glow:rgba(255,77,0,0.3);
+  --gold:#FFB800; --gold-light:#FFD700;
+  --dark:#0A0A12; --dark2:#0E0E18;
+  --card:#15151F; --card-border:#252535;
+  --blue:#00AAFF; --blue-dark:#101820; --blue-border:#1E3050;
+  --coord-bg:#1F1A14; --coord-border:#3D2E1A;
+  --green:#00DD77;
+  --white:#fff; --w70:#B3B3B3; --w50:#808080;
+  --w30:#4D4D4D; --w20:#333; --w10:#1A1A28;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:var(--dark);color:var(--white);font-family:'Outfit',sans-serif;min-height:100vh;min-height:100dvh;overflow-x:hidden}
+
+/* NAV */
+.nav{display:flex;background:var(--dark2);border-bottom:1px solid var(--w10);position:sticky;top:0;z-index:100}
+.nav-btn{flex:1;padding:14px 4px;background:transparent;border:none;border-bottom:2.5px solid transparent;color:var(--w30);font-family:'Outfit',sans-serif;font-size:10px;font-weight:700;letter-spacing:1px;cursor:pointer;transition:all .3s}
+.nav-btn.active{background:var(--card)}
+.nav-btn[data-tab="generator"].active{color:var(--fire);border-bottom-color:var(--fire)}
+.nav-btn[data-tab="avance"].active{color:var(--green);border-bottom-color:var(--green)}
+.nav-btn[data-tab="tracker"].active{color:var(--gold);border-bottom-color:var(--gold)}
+
+.container{max-width:920px;margin:0 auto;padding:24px 16px 40px}
+.hidden{display:none!important}
+.page-title{font-family:'Bebas Neue',sans-serif;font-size:clamp(26px,6vw,42px);letter-spacing:3px;text-align:center;color:var(--white);margin-bottom:4px}
+.page-sub{text-align:center;color:var(--w30);font-size:12px;letter-spacing:1px;margin-bottom:24px}
+.section-head{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.section-icon{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
+.icon-sup{background:var(--fire)}.icon-coord{background:var(--gold)}.icon-cap{background:var(--blue)}
+.section-label{font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:3px;color:var(--w70);flex-grow:1}
+.section-total{font-family:'Bebas Neue',sans-serif;font-size:14px;color:var(--gold);letter-spacing:1px}
+
+.input-grid{display:grid;gap:10px;margin-bottom:22px}
+.input-grid.sup{grid-template-columns:repeat(3,1fr)}
+.input-grid.wide{grid-template-columns:repeat(2,1fr)}
+@media(max-width:400px){.input-grid.sup{grid-template-columns:repeat(2,1fr)}}
+.input-card{background:var(--card);border:1px solid var(--card-border);border-radius:14px;padding:14px 10px;text-align:center}
+.input-card.coord{background:var(--coord-bg);border-color:var(--coord-border)}
+.input-card.cap{background:var(--blue-dark);border-color:var(--blue-border)}
+.input-card .name{font-size:10px;font-weight:800;letter-spacing:2px;color:var(--w70);margin-bottom:8px}
+.input-card input{width:100%;background:rgba(255,255,255,0.04);border:1px solid var(--card-border);border-radius:10px;color:var(--fire);font-family:'Bebas Neue',sans-serif;font-size:36px;text-align:center;padding:6px 0;outline:none;transition:border-color .3s}
+.input-card input:focus{border-color:var(--fire)}
+.input-card.coord input{color:var(--gold)}.input-card.coord input:focus{border-color:var(--gold)}
+.input-card.cap input{color:var(--blue)}.input-card.cap input:focus{border-color:var(--blue)}
+
+.total-box{background:linear-gradient(135deg,#1A1210,var(--card));border:1px solid #332010;border-radius:16px;padding:20px;text-align:center;margin:8px 0 16px}
+.total-box .label{color:var(--w50);font-size:11px;letter-spacing:2px;margin-bottom:4px}
+.total-box .number{font-family:'Bebas Neue',sans-serif;font-size:64px;color:var(--fire);line-height:1}
+.total-box .unit{font-family:'Bebas Neue',sans-serif;font-size:12px;color:var(--w30);letter-spacing:8px}
+
+.btn-generate{width:100%;padding:16px;border-radius:14px;border:none;background:linear-gradient(135deg,var(--fire),var(--gold));color:var(--dark);font-family:'Outfit',sans-serif;font-size:15px;font-weight:900;letter-spacing:2px;cursor:pointer}
+.btn-generate:disabled{background:var(--w10);color:var(--w30);cursor:default;opacity:.5}
+.btn-row{display:flex;gap:10px;margin-top:16px}
+.btn-secondary{flex:1;padding:14px;border-radius:12px;border:1px solid var(--card-border);background:var(--card);color:var(--w70);font-family:'Outfit',sans-serif;font-size:13px;font-weight:700;cursor:pointer}
+.btn-primary{flex:1;padding:14px;border-radius:12px;border:none;background:linear-gradient(135deg,var(--fire),var(--gold));color:var(--dark);font-family:'Outfit',sans-serif;font-size:13px;font-weight:900;cursor:pointer}
+
+/* POSTER */
+.poster{background:var(--dark);padding:28px 20px 20px;border-radius:20px;border:1px solid var(--w10);position:relative;overflow:hidden}
+.poster .glow1{position:absolute;top:-100px;left:-50px;width:300px;height:300px;background:radial-gradient(circle,rgba(255,77,0,0.1)0%,transparent 70%);pointer-events:none}
+.poster .glow2{position:absolute;bottom:-80px;right:-50px;width:250px;height:250px;background:radial-gradient(circle,rgba(255,184,0,0.07)0%,transparent 70%);pointer-events:none}
+.poster .date-badge{text-align:center;margin-bottom:12px;position:relative}
+.poster .date-badge span{display:inline-block;background:linear-gradient(135deg,var(--fire),var(--gold));color:var(--dark);font-weight:800;font-size:8px;padding:5px 20px;border-radius:20px;letter-spacing:1.5px}
+.poster .poster-title{font-family:'Bebas Neue',sans-serif;font-size:clamp(32px,7vw,48px);letter-spacing:3px;text-align:center;color:var(--white);line-height:1;margin-bottom:4px;position:relative}
+.poster .poster-sub{text-align:center;font-size:11px;color:var(--w30);letter-spacing:2px;margin-bottom:18px}
+.poster .poster-sub b{color:var(--gold)}
+.poster .big-num{text-align:center;margin-bottom:8px;position:relative}
+.poster .big-num .n{font-family:'Bebas Neue',sans-serif;font-size:clamp(72px,18vw,100px);color:var(--fire);line-height:1}
+.poster .big-num .u{font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:10px;color:var(--w30);margin-top:-2px}
+.poster .big-num .s{font-size:9px;color:var(--w20);letter-spacing:1px;margin-top:4px}
+.poster .divider{text-align:center;margin:12px 0;font-size:14px;color:var(--fire)}
+.poster .divider .dl{display:inline-block;width:40px;height:1px;background:var(--fire);vertical-align:middle;opacity:.5}
+.poster .p-cards{display:grid;gap:8px;margin-bottom:4px}
+.poster .p-cards.p-sup{grid-template-columns:repeat(6,1fr)}
+.poster .p-cards.p-wide{grid-template-columns:repeat(2,1fr)}
+@media(max-width:500px){.poster .p-cards.p-sup{grid-template-columns:repeat(3,1fr)}}
+.poster .p-card{border-radius:12px;padding:12px 4px 10px;text-align:center;position:relative;border:1px solid}
+.poster .p-card .accent{position:absolute;top:0;left:15%;right:15%;height:2.5px;border-radius:0 0 3px 3px}
+.poster .p-card .pname{font-size:8px;font-weight:800;letter-spacing:2px;color:var(--w70)}
+.poster .p-card .pnum{font-family:'Bebas Neue',sans-serif;font-size:32px;line-height:1.1}
+.poster .p-card .plabel{font-size:7px;color:var(--w20);letter-spacing:2px}
+.poster .p-card.ps{background:var(--card);border-color:var(--card-border)}.poster .p-card.ps .accent{background:var(--fire)}.poster .p-card.ps .pnum{color:var(--fire)}
+.poster .p-card.pc{background:var(--coord-bg);border-color:var(--coord-border)}.poster .p-card.pc .accent{background:var(--gold)}.poster .p-card.pc .pnum{color:var(--gold);font-size:38px}
+.poster .p-card.pp{background:var(--blue-dark);border-color:var(--blue-border)}.poster .p-card.pp .accent{background:var(--blue)}.poster .p-card.pp .pnum{color:var(--blue);font-size:38px}
+.poster .pbar-wrap{margin:14px 0 10px}
+.poster .pbar-labels{display:flex;justify-content:space-between;font-size:7px;color:var(--w20);letter-spacing:1.5px;margin-bottom:4px}
+.poster .pbar{width:100%;height:6px;background:var(--w10);border-radius:4px;overflow:hidden}
+.poster .pbar-fill{width:100%;height:100%;background:linear-gradient(90deg,var(--fire),var(--gold));border-radius:4px}
+.poster .mot-box{background:#18120E;border:1px solid #33200E;border-radius:14px;padding:18px 16px 14px;text-align:center;margin-top:10px}
+.poster .mot-box .mq{font-family:'Bebas Neue',sans-serif;font-size:clamp(15px,3.5vw,20px);letter-spacing:1.5px;line-height:1.35;color:var(--white)}
+.poster .mot-box .mq .gold{color:var(--gold)}
+.poster .mot-box .ms{font-size:8px;color:var(--w30);margin-top:8px;letter-spacing:1px}
+.poster .footer-text{text-align:center;margin-top:12px;font-size:7px;color:var(--w20);letter-spacing:2px}
+
+/* AVANCE */
+.corte-selector{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin-bottom:20px}
+.corte-btn{padding:6px 12px;border-radius:10px;border:1px solid var(--card-border);background:var(--card);color:var(--w50);font-family:'Outfit',sans-serif;font-size:10px;font-weight:700;cursor:pointer;transition:all .2s;letter-spacing:.5px;text-align:center}
+.corte-btn.active{background:var(--green);color:var(--dark);border-color:var(--green)}
+.corte-btn .cc{display:block;font-family:'Bebas Neue',sans-serif;font-size:16px;margin-top:1px}
+.avance-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px}
+.av-card{background:var(--card);border:1px solid var(--card-border);border-radius:14px;padding:14px 10px;text-align:center;position:relative;overflow:hidden}
+.av-card .av-label{font-size:8px;color:var(--w30);letter-spacing:2px;margin-bottom:4px}
+.av-card .av-num{font-family:'Bebas Neue',sans-serif;font-size:36px;line-height:1}
+.av-card .av-bar{position:absolute;bottom:0;left:0;height:3px;border-radius:0 3px 0 0;transition:width .5s}
+.avance-member{background:var(--card);border:1px solid var(--card-border);border-radius:14px;padding:14px;margin-bottom:10px}
+.av-mem-top{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.av-mem-name{font-weight:700;font-size:13px;flex-grow:1}
+.av-mem-badge{font-family:'Bebas Neue',sans-serif;font-size:11px;padding:3px 10px;border-radius:8px;letter-spacing:1px}
+.av-mem-progress{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.av-mem-bar-wrap{flex-grow:1;height:8px;background:var(--w10);border-radius:4px;overflow:hidden}
+.av-mem-bar{height:100%;border-radius:4px;transition:width .5s}
+.av-mem-pct{font-family:'Bebas Neue',sans-serif;font-size:16px;min-width:42px;text-align:right}
+.av-mem-nums{display:flex;justify-content:space-between;font-size:10px;color:var(--w30)}
+.av-input-row{display:flex;align-items:center;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid var(--w10)}
+.av-input{flex-grow:1;background:rgba(255,255,255,0.04);border:1px solid var(--card-border);border-radius:10px;color:var(--white);font-family:'Outfit',sans-serif;font-size:14px;padding:10px 14px;outline:none}
+.av-input:focus{border-color:var(--green)}
+.av-input::placeholder{color:var(--w20)}
+.av-save-btn{background:var(--green);color:var(--dark);border:none;border-radius:10px;padding:10px 16px;font-family:'Outfit',sans-serif;font-size:13px;font-weight:800;cursor:pointer}
+.hour-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #12121C}
+.hour-label{font-family:'Bebas Neue',sans-serif;font-size:14px;color:var(--w30);min-width:50px;letter-spacing:1px}
+.hour-label.hl-active{color:var(--green)}
+.hour-dots{display:flex;gap:4px;flex-wrap:wrap;flex-grow:1}
+.hour-dot{width:8px;height:8px;border-radius:50%}
+
+/* TRACKER */
+.week-nav{display:flex;align-items:center;justify-content:center;gap:16px;margin-bottom:20px}
+.week-nav button{background:var(--card);border:1px solid var(--card-border);border-radius:10px;color:var(--w70);padding:8px 14px;font-size:16px;cursor:pointer}
+.week-nav .wk-title{text-align:center}
+.week-nav .wk-title h2{font-family:'Bebas Neue',sans-serif;color:var(--white);font-size:20px;letter-spacing:2px}
+.week-nav .wk-title p{color:var(--w30);font-size:11px}
+.summary-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px}
+.summary-card{background:var(--card);border:1px solid var(--card-border);border-radius:14px;padding:14px;text-align:center}
+.summary-card .sc-label{font-size:9px;color:var(--w30);letter-spacing:2px;margin-bottom:4px}
+.summary-card .sc-num{font-family:'Bebas Neue',sans-serif;font-size:34px;line-height:1}
+.table-wrap{overflow-x:auto;border-radius:16px;border:1px solid var(--w10);-webkit-overflow-scrolling:touch}
+.table-wrap table{width:100%;border-collapse:collapse;min-width:620px}
+.table-wrap th,.table-wrap td{border-bottom:1px solid #12121C}
+.table-wrap thead th{padding:12px 6px;text-align:center;background:var(--dark2);font-size:10px;font-weight:800;color:var(--w30)}
+.table-wrap thead th:first-child{text-align:left;padding-left:12px;position:sticky;left:0;background:var(--dark2);z-index:2;min-width:90px}
+.table-wrap thead th.today{background:#1A1510;color:var(--gold)}
+.table-wrap .group-row td{padding:8px 10px;background:var(--dark)}
+.table-wrap .member-row td{padding:8px 4px;text-align:center;vertical-align:middle}
+.table-wrap .member-row td:first-child{text-align:left;padding-left:12px;color:#ccc;font-size:12px;font-weight:600;position:sticky;left:0;background:var(--dark);z-index:1}
+.table-wrap .member-row td.today-col{background:rgba(255,184,0,0.03)}
+.check-btn{width:32px;height:32px;border-radius:8px;border:2px solid var(--w20);background:rgba(255,255,255,0.02);color:transparent;font-size:16px;cursor:pointer;transition:all .2s;display:inline-flex;align-items:center;justify-content:center}
+.check-btn.checked{border-color:var(--green);background:rgba(0,221,119,0.1);color:var(--green)}
+.commit-val{color:var(--w30);font-size:9px;margin-bottom:3px}
+.mini-input{width:38px;padding:6px 2px;text-align:center;background:rgba(255,255,255,0.03);border:1px solid var(--w10);border-radius:8px;color:var(--w30);font-size:12px;font-family:'Outfit',sans-serif;outline:none}
+.mini-input:focus{border-color:var(--fire);color:var(--fire)}
+.pct-cell .pct-num{font-family:'Bebas Neue',sans-serif;font-size:18px}
+.pct-cell .pct-detail{color:var(--w20);font-size:8px}
+.legend{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin-top:16px}
+.legend-item{display:flex;align-items:center;gap:5px;color:var(--w30);font-size:11px}
+.app-footer{text-align:center;margin-top:20px;font-size:8px;color:var(--w20);letter-spacing:2px}
+
+.toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:var(--green);color:var(--dark);padding:12px 24px;border-radius:12px;font-weight:700;font-size:13px;letter-spacing:1px;z-index:999;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap}
+.toast.show{opacity:1}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <button class="nav-btn active" data-tab="generator" onclick="showTab('generator')">🔥 COMPROMISO</button>
+  <button class="nav-btn" data-tab="avance" onclick="showTab('avance')">📈 AVANCE</button>
+  <button class="nav-btn" data-tab="tracker" onclick="showTab('tracker')">📊 TRACKER</button>
+</nav>
+
+<!-- TAB 1: GENERATOR -->
+<div id="tab-generator" class="container">
+  <div id="input-view">
+    <h1 class="page-title">CAPTURA EL COMPROMISO</h1>
+    <p class="page-sub" id="date-display"></p>
+    <div class="section-head"><div class="section-icon icon-sup">⚡</div><span class="section-label">SUPERVISORES</span><span class="section-total" id="total-sup">0 ventas</span></div>
+    <div class="input-grid sup" id="grid-sup"></div>
+    <div class="section-head"><div class="section-icon icon-coord">👑</div><span class="section-label">COORDINADORES</span><span class="section-total" id="total-coord">0 ventas</span></div>
+    <div class="input-grid wide" id="grid-coord"></div>
+    <div class="section-head"><div class="section-icon icon-cap">📘</div><span class="section-label">CAPACITADORES</span><span class="section-total" id="total-cap">0 ventas</span></div>
+    <div class="input-grid wide" id="grid-cap"></div>
+    <div class="total-box"><div class="label">TOTAL COMPROMETIDO</div><div class="number" id="grand-total">0</div><div class="unit">VENTAS</div></div>
+    <button class="btn-generate" id="btn-gen" disabled onclick="generate()">🔥 GENERAR COMPROMISO DEL DÍA</button>
+  </div>
+  <div id="poster-view" class="hidden">
+    <div class="poster" id="poster-content">
+      <div class="glow1"></div><div class="glow2"></div>
+      <div class="date-badge"><span id="poster-date"></span></div>
+      <div class="poster-title">COMPROMISO DEL DÍA</div>
+      <div class="poster-sub">Palabra dada. <b>Resultado asegurado.</b></div>
+      <div class="big-num"><div class="n" id="poster-total">0</div><div class="u">VENTAS</div><div class="s">Meta comprometida por el equipo ExpertCell</div></div>
+      <div class="divider"><span class="dl"></span> 🔥 <span class="dl"></span></div>
+      <div id="poster-sections"></div>
+      <div class="pbar-wrap"><div class="pbar-labels"><span>0 VENTAS</span><span id="poster-bar-label">META: 0</span></div><div class="pbar"><div class="pbar-fill"></div></div></div>
+      <div class="mot-box"><div class="mq">"HOY NO SE TRATA DE PODER.<br>SE TRATA DE QUERER.<br><span class="gold">Y USTEDES YA DIJERON: ¡YO QUIERO!"</span></div><div class="ms">Cada venta cuenta. Cada uno de ustedes cuenta. 💪</div></div>
+      <div class="footer-text">EXPERTCELL — EQUIPO AT&T · PALABRA DE CAMPEONES</div>
+    </div>
+    <div class="btn-row">
+      <button class="btn-secondary" onclick="backToEdit()">← EDITAR</button>
+      <button class="btn-primary" onclick="screenshot('poster-content','Compromiso')">📱 DESCARGAR IMAGEN</button>
+    </div>
+  </div>
+</div>
+
+<!-- TAB 2: AVANCE -->
+<div id="tab-avance" class="container hidden">
+  <div style="text-align:center;margin-bottom:20px">
+    <h1 class="page-title">AVANCE DEL DÍA</h1>
+    <p class="page-sub" id="avance-date"></p>
+    <div style="display:inline-block;background:var(--card);border:1px solid var(--card-border);border-radius:12px;padding:8px 20px">
+      <div id="live-clock" style="font-family:'Bebas Neue',sans-serif;font-size:28px;color:var(--green);letter-spacing:2px">--:--</div>
+    </div>
+  </div>
+  <div class="corte-selector" id="corte-selector"></div>
+  <div id="avance-share-area">
+  <div class="avance-summary">
+    <div class="av-card"><div class="av-label">COMPROMETIDAS</div><div class="av-num" id="av-committed" style="color:var(--fire)">0</div></div>
+    <div class="av-card" style="position:relative"><div class="av-label">REALIZADAS</div><div class="av-num" id="av-done" style="color:var(--green)">0</div><div class="av-bar" id="av-bar-done" style="background:var(--green);width:0%"></div></div>
+    <div class="av-card"><div class="av-label">FALTAN</div><div class="av-num" id="av-remaining" style="color:var(--gold)">0</div></div>
+  </div>
+  <div id="avance-members"></div>
+  <div id="hour-timeline" style="margin-top:20px"></div>
+  <div class="app-footer" style="margin-top:24px">EXPERTCELL — AVANCE EN TIEMPO REAL AT&T</div>
+  </div>
+  <div style="margin-top:16px">
+    <button class="btn-primary" style="width:100%" onclick="screenshot('avance-share-area','Avance')">📱 DESCARGAR IMAGEN DEL AVANCE</button>
+  </div>
+</div>
+
+<!-- TAB 3: TRACKER -->
+<div id="tab-tracker" class="container hidden">
+  <div class="week-nav">
+    <button onclick="navWeek(-1)">◀</button>
+    <div class="wk-title"><h2>SEMANA</h2><p id="week-range"></p></div>
+    <button onclick="navWeek(1)">▶</button>
+  </div>
+  <div id="tracker-share-area">
+  <div class="summary-row">
+    <div class="summary-card"><div class="sc-label">COMPROMISOS</div><div class="sc-num" id="wk-total" style="color:var(--fire)">0</div></div>
+    <div class="summary-card"><div class="sc-label">CUMPLIDOS</div><div class="sc-num" id="wk-met" style="color:var(--green)">0</div></div>
+    <div class="summary-card"><div class="sc-label">% CUMPLIMIENTO</div><div class="sc-num" id="wk-pct">0%</div></div>
+  </div>
+  <div class="table-wrap"><table id="tracker-table"></table></div>
+  <div class="app-footer" style="margin-top:12px">EXPERTCELL — TRACKER DE CUMPLIMIENTO AT&T</div>
+  </div>
+  <div style="margin-top:16px">
+    <button class="btn-primary" style="width:100%;background:linear-gradient(135deg,var(--gold),var(--fire))" onclick="screenshot('tracker-share-area','Tracker')">📱 DESCARGAR IMAGEN DEL TRACKER</button>
+  </div>
+  <div class="legend">
+    <div class="legend-item"><div style="width:18px;height:18px;border-radius:5px;border:2px solid var(--green);background:rgba(0,221,119,0.1);color:var(--green);display:inline-flex;align-items:center;justify-content:center;font-size:11px">✓</div><span>Cumplió</span></div>
+    <div class="legend-item"><div style="width:18px;height:18px;border-radius:5px;border:2px solid var(--w20)"></div><span>No cumplió</span></div>
+    <div class="legend-item"><span style="color:var(--green);font-weight:900">80%+</span><span>Excelente</span></div>
+    <div class="legend-item"><span style="color:var(--gold);font-weight:900">50%+</span><span>Regular</span></div>
+    <div class="legend-item"><span style="color:var(--fire);font-weight:900">&lt;50%</span><span>Bajo</span></div>
+  </div>
+  <div class="app-footer">EXPERTCELL — TRACKER DE CUMPLIMIENTO AT&T</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const TEAM={supervisores:["Jorge","Reyna","Fer","Alfred","Alan","Carlos"],coordinadores:["Eduardo","Luisa"],capacitadores:["Tomás","Irán"]};
+const GM={supervisores:{icon:"⚡",cls:"ps",ic:"",clr:"var(--fire)"},coordinadores:{icon:"👑",cls:"pc",ic:"coord",clr:"var(--gold)"},capacitadores:{icon:"📘",cls:"pp",ic:"cap",clr:"var(--blue)"}};
+const ALL=[];Object.keys(TEAM).forEach(g=>TEAM[g].forEach(n=>ALL.push({name:n,group:g})));
+const DAYS_ES=["DOMINGO","LUNES","MARTES","MIÉRCOLES","JUEVES","VIERNES","SÁBADO"];
+const MO_ES=["","ENERO","FEBRERO","MARZO","ABRIL","MAYO","JUNIO","JULIO","AGOSTO","SEPTIEMBRE","OCTUBRE","NOVIEMBRE","DICIEMBRE"];
+const DS=["DOM","LUN","MAR","MIÉ","JUE","VIE","SÁB"];
+const CORTES=["11:00","12:00","13:00","14:00","15:00","16:00","17:00","18:00","19:00+"];
+const commits={};ALL.forEach(m=>commits[m.name]=0);
+let weekStart=getMonday(new Date()),selCorte=null;
+
+function load(k){try{return JSON.parse(localStorage.getItem(k)||"{}")}catch{return{}}}
+function save(k,d){try{localStorage.setItem(k,JSON.stringify(d))}catch{}}
+function toKey(d){return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`}
+function getMonday(d){const t=new Date(d),dy=t.getDay();t.setDate(t.getDate()-dy+(dy===0?-6:1));t.setHours(0,0,0,0);return t}
+function weekDays(s){return Array.from({length:6},(_,i)=>{const d=new Date(s);d.setDate(s.getDate()+i);return d})}
+function fmtDate(d){return`${DAYS_ES[d.getDay()]} ${d.getDate()} DE ${MO_ES[d.getMonth()+1]} DE ${d.getFullYear()}`}
+function pctClr(p){return p>=80?"var(--green)":p>=50?"var(--gold)":"var(--fire)"}
+function gClr(g){return GM[g].clr}
+function showToast(m){const t=document.getElementById("toast");t.textContent=m;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),2500)}
+
+function showTab(tab){
+  ["generator","avance","tracker"].forEach(t=>document.getElementById("tab-"+t).classList.toggle("hidden",t!==tab));
+  document.querySelectorAll(".nav-btn").forEach(b=>b.classList.toggle("active",b.dataset.tab===tab));
+  if(tab==="tracker")renderTracker();if(tab==="avance")renderAvance();
+}
+
+// ═══ TAB 1 ═══
+function buildInputs(){
+  document.getElementById("date-display").textContent=`Ingresa las ventas comprometidas para hoy — ${fmtDate(new Date())}`;
+  ["supervisores","coordinadores","capacitadores"].forEach(g=>{
+    const gid=g==="supervisores"?"grid-sup":g==="coordinadores"?"grid-coord":"grid-cap";
+    const el=document.getElementById(gid);el.innerHTML="";
+    TEAM[g].forEach(n=>{const c=document.createElement("div");c.className=`input-card ${GM[g].ic}`;c.innerHTML=`<div class="name">${n.toUpperCase()}</div><input type="text" inputmode="numeric" placeholder="0" oninput="onCI('${n}',this.value)">`;el.appendChild(c)});
+  });
+}
+function onCI(n,v){commits[n]=parseInt(v.replace(/\D/g,""))||0;updTotals()}
+function updTotals(){
+  let gt=0;["supervisores","coordinadores","capacitadores"].forEach(g=>{let s=0;TEAM[g].forEach(n=>s+=commits[n]);document.getElementById(g==="supervisores"?"total-sup":g==="coordinadores"?"total-coord":"total-cap").textContent=s+" ventas";if(g!=="coordinadores")gt+=s});
+  document.getElementById("grand-total").textContent=gt;document.getElementById("btn-gen").disabled=gt===0;
+}
+function generate(){
+  const now=new Date(),gt=+document.getElementById("grand-total").textContent;
+  document.getElementById("poster-date").textContent=fmtDate(now);
+  document.getElementById("poster-total").textContent=gt;
+  document.getElementById("poster-bar-label").textContent=`META: ${gt} VENTAS`;
+  const ct=document.getElementById("poster-sections");ct.innerHTML="";
+  ["supervisores","coordinadores","capacitadores"].forEach(g=>{
+    const ms=TEAM[g].filter(n=>commits[n]>0);if(!ms.length)return;
+    const gm=GM[g],sm=ms.reduce((s,n)=>s+commits[n],0),ic=g==="supervisores"?"icon-sup":g==="coordinadores"?"icon-coord":"icon-cap",cg=g==="supervisores"?"p-sup":"p-wide";
+    let h=`<div style="margin-bottom:14px"><div class="section-head"><div class="section-icon ${ic}">${gm.icon}</div><span class="section-label">${g.toUpperCase()}</span><span class="section-total">${sm} ventas</span></div><div class="p-cards ${cg}">`;
+    ms.forEach(n=>{h+=`<div class="p-card ${gm.cls}"><div class="accent"></div><div class="pname">${n.toUpperCase()}</div><div class="pnum">${commits[n]}</div><div class="plabel">VENTAS</div></div>`});
+    h+=`</div></div>`;ct.innerHTML+=h;
+  });
+  const dk=toKey(now),tr=load("ec-tracker"),av=load("ec-avance");
+  if(!tr[dk])tr[dk]={};if(!av[dk])av[dk]={};
+  ALL.forEach(m=>{if(commits[m.name]>0){tr[dk][m.name]={committed:commits[m.name],met:tr[dk]?.[m.name]?.met||false};if(!av[dk][m.name])av[dk][m.name]={committed:commits[m.name],cortes:{}}}});
+  save("ec-tracker",tr);save("ec-avance",av);
+  document.getElementById("input-view").classList.add("hidden");document.getElementById("poster-view").classList.remove("hidden");
+  showToast("✅ Compromiso guardado");
+}
+function backToEdit(){document.getElementById("poster-view").classList.add("hidden");document.getElementById("input-view").classList.remove("hidden")}
+
+// ═══ TAB 2: AVANCE ═══
+function renderAvance(){
+  const now=new Date(),dk=toKey(now);
+  document.getElementById("avance-date").textContent=fmtDate(now);updClock();
+  const av=load("ec-avance"),dd=av[dk]||{};
+  const ch=now.getHours();
+  if(!selCorte){if(ch<11)selCorte="11:00";else if(ch>=19)selCorte="19:00+";else{selCorte=ch+":00";if(!CORTES.includes(selCorte))selCorte=CORTES[0]}}
+
+  // Corte buttons
+  const sel=document.getElementById("corte-selector");sel.innerHTML="";
+  CORTES.forEach(c=>{let cnt=0;Object.values(dd).forEach(m=>{if(m.cortes?.[c])cnt+=m.cortes[c]});
+    const b=document.createElement("button");b.className=`corte-btn ${c===selCorte?"active":""}`;b.onclick=()=>{selCorte=c;renderAvance()};b.innerHTML=`${c}<span class="cc">${cnt}</span>`;sel.appendChild(b)});
+
+  // Totals
+  let tCom=0,tDone=0;
+  ALL.forEach(m=>{const d=dd[m.name];if(d&&m.group!=="coordinadores"){tCom+=d.committed||0;if(d.cortes)Object.values(d.cortes).forEach(v=>tDone+=v)}});
+  document.getElementById("av-committed").textContent=tCom;document.getElementById("av-done").textContent=tDone;document.getElementById("av-remaining").textContent=Math.max(0,tCom-tDone);
+  document.getElementById("av-bar-done").style.width=(tCom>0?Math.min(100,Math.round(tDone/tCom*100)):0)+"%";
+
+  // Members
+  const mel=document.getElementById("avance-members");mel.innerHTML="";
+  let hasData=false;
+  ["supervisores","coordinadores","capacitadores"].forEach(g=>{
+    const active=TEAM[g].filter(n=>dd[n]);if(!active.length)return;hasData=true;
+    const gm=GM[g],ic=g==="supervisores"?"icon-sup":g==="coordinadores"?"icon-coord":"icon-cap";
+    mel.innerHTML+=`<div class="section-head" style="margin-top:16px;margin-bottom:8px"><div class="section-icon ${ic}" style="width:24px;height:24px;font-size:12px">${gm.icon}</div><span class="section-label" style="font-size:14px">${g.toUpperCase()}</span></div>`;
+    active.forEach(name=>{
+      const md=dd[name],com=md.committed||0;let done=0;if(md.cortes)Object.values(md.cortes).forEach(v=>done+=v);
+      const left=Math.max(0,com-done),pct=com>0?Math.min(100,Math.round(done/com*100)):0;
+      const cv=md.cortes?.[selCorte]||"",clr=gClr(g);
+      const sc=pct>=100?"var(--green)":pct>=50?"var(--gold)":"var(--fire)";
+      const st=pct>=100?"✅ CUMPLIDO":pct>=75?"🔥 CASI":pct>=50?"⚡ MITAD":`⏳ FALTAN ${left}`;
+      const card=document.createElement("div");card.className="avance-member";
+      card.innerHTML=`<div class="av-mem-top"><div class="av-mem-name" style="color:${clr}">${name}</div><div class="av-mem-badge" style="background:${sc}20;color:${sc}">${st}</div></div>
+        <div class="av-mem-progress"><div class="av-mem-bar-wrap"><div class="av-mem-bar" style="width:${pct}%;background:${pct>=100?"var(--green)":clr}"></div></div><div class="av-mem-pct" style="color:${sc}">${pct}%</div></div>
+        <div class="av-mem-nums"><span>Meta: <b style="color:var(--white)">${com}</b></span><span>Hechas: <b style="color:var(--green)">${done}</b></span><span>Faltan: <b style="color:${left>0?"var(--gold)":"var(--green)"}">${left}</b></span></div>
+        <div class="av-input-row"><input class="av-input" type="text" inputmode="numeric" placeholder="Ventas corte ${selCorte}" value="${cv||""}" id="avi-${name.replace(/[^a-zA-Z]/g,"")}"><button class="av-save-btn" onclick="saveC('${name}','${dk}')">💾 Guardar</button></div>`;
+      mel.appendChild(card);
+    });
+  });
+  if(!hasData)mel.innerHTML=`<div style="text-align:center;padding:40px 20px;color:var(--w30)"><div style="font-size:40px;margin-bottom:12px">📋</div><div style="font-size:14px;font-weight:700;margin-bottom:6px">No hay compromiso para hoy</div><div style="font-size:12px">Ve a 🔥 COMPROMISO y genera el compromiso del día primero.</div></div>`;
+
+  // Timeline
+  const tl=document.getElementById("hour-timeline");tl.innerHTML=`<div style="font-family:'Bebas Neue',sans-serif;font-size:16px;color:var(--w50);letter-spacing:2px;margin-bottom:10px">LÍNEA DE TIEMPO</div>`;
+  CORTES.forEach(c=>{let cnt=0;Object.values(dd).forEach(m=>{if(m.cortes?.[c])cnt+=m.cortes[c]});
+    const isA=c===selCorte;let dots="";for(let i=0;i<Math.min(cnt,40);i++)dots+=`<div class="hour-dot" style="background:var(--green)"></div>`;
+    if(cnt===0)for(let i=0;i<3;i++)dots+=`<div class="hour-dot" style="background:var(--w10)"></div>`;
+    tl.innerHTML+=`<div class="hour-row" style="${isA?"background:rgba(0,221,119,0.03);border-radius:8px;padding:10px;margin:0 -10px":""}"><div class="hour-label ${isA?"hl-active":""}">${c}</div><div class="hour-dots">${dots}</div><div style="font-family:'Bebas Neue',sans-serif;font-size:16px;min-width:30px;text-align:right;color:${cnt>0?"var(--green)":"var(--w20)"}">${cnt}</div></div>`;
+  });
+}
+
+function saveC(name,dk){
+  const inp=document.getElementById("avi-"+name.replace(/[^a-zA-Z]/g,""));
+  const val=parseInt(inp.value.replace(/\D/g,""))||0;
+  const av=load("ec-avance");if(!av[dk]?.[name])return;
+  if(!av[dk][name].cortes)av[dk][name].cortes={};
+  av[dk][name].cortes[selCorte]=val;save("ec-avance",av);
+  // Auto-check tracker
+  let td=0;Object.values(av[dk][name].cortes).forEach(v=>td+=v);
+  const tr=load("ec-tracker");if(tr[dk]?.[name]){tr[dk][name].met=td>=tr[dk][name].committed;save("ec-tracker",tr)}
+  renderAvance();showToast(`✅ ${name}: ${val} en corte ${selCorte}`);
+}
+
+function updClock(){const n=new Date(),el=document.getElementById("live-clock");if(el)el.textContent=String(n.getHours()).padStart(2,"0")+":"+String(n.getMinutes()).padStart(2,"0")}
+setInterval(updClock,30000);
+
+// ═══ SCREENSHOT ═══
+function screenshot(elementId, label){
+  const el=document.getElementById(elementId);
+  if(!el)return;
+  showToast("📸 Generando imagen...");
+  // Temporarily add padding/bg for nice capture
+  const origBg=el.style.background;const origPad=el.style.padding;const origRad=el.style.borderRadius;
+  el.style.background="var(--dark)";el.style.padding="20px";el.style.borderRadius="0";
+  html2canvas(el,{backgroundColor:"#0A0A12",scale:2,useCORS:true,logging:false}).then(canvas=>{
+    el.style.background=origBg;el.style.padding=origPad;el.style.borderRadius=origRad;
+    // Try native share first (mobile)
+    canvas.toBlob(blob=>{
+      const now=new Date();
+      const fname=`ExpertCell_${label}_${now.getDate()}-${now.getMonth()+1}-${now.getFullYear()}.png`;
+      if(navigator.share&&navigator.canShare){
+        const file=new File([blob],fname,{type:"image/png"});
+        if(navigator.canShare({files:[file]})){
+          navigator.share({files:[file],title:`ExpertCell ${label}`}).then(()=>{
+            showToast("✅ Compartido");
+          }).catch(()=>{downloadBlob(blob,fname)});
+          return;
+        }
+      }
+      downloadBlob(blob,fname);
+    },"image/png");
+  }).catch(()=>{
+    el.style.background=origBg;el.style.padding=origPad;el.style.borderRadius=origRad;
+    showToast("❌ Error al generar imagen");
+  });
+}
+function downloadBlob(blob,fname){
+  const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=fname;
+  document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
+  showToast("✅ Imagen descargada — comparte por WhatsApp");
+}
+
+// ═══ TAB 3: TRACKER ═══
+function navWeek(d){weekStart=new Date(weekStart);weekStart.setDate(weekStart.getDate()+d*7);renderTracker()}
+function renderTracker(){
+  const days=weekDays(weekStart),tk=toKey(new Date()),tr=load("ec-tracker");
+  document.getElementById("week-range").textContent=`${days[0].getDate()}/${days[0].getMonth()+1} — ${days[5].getDate()}/${days[5].getMonth()+1}`;
+  let wT=0,wM=0;days.forEach(d=>{const dk=toKey(d);if(tr[dk])Object.values(tr[dk]).forEach(e=>{if(e.committed>0){wT++;if(e.met)wM++}})});
+  const wP=wT>0?Math.round(wM/wT*100):0;
+  document.getElementById("wk-total").textContent=wT;document.getElementById("wk-met").textContent=wM;
+  const pe=document.getElementById("wk-pct");pe.textContent=wP+"%";pe.style.color=pctClr(wP);
+  const tb=document.getElementById("tracker-table");
+  let h=`<thead><tr><th>MIEMBRO</th>`;
+  days.forEach(d=>{const dk=toKey(d);h+=`<th class="${dk===tk?"today":""}">${DS[d.getDay()]}<br>${d.getDate()}</th>`});
+  h+=`<th style="color:var(--gold)">%</th></tr></thead><tbody>`;
+  ["supervisores","coordinadores","capacitadores"].forEach(g=>{
+    const gm=GM[g],ic=g==="supervisores"?"icon-sup":g==="coordinadores"?"icon-coord":"icon-cap";
+    h+=`<tr class="group-row"><td colspan="${days.length+2}"><span class="section-icon ${ic}" style="width:20px;height:20px;border-radius:5px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;vertical-align:middle;margin-right:6px">${gm.icon}</span><span style="color:var(--w50);font-weight:800;font-size:11px;letter-spacing:2px;vertical-align:middle">${g.toUpperCase()}</span></td></tr>`;
+    TEAM[g].forEach(name=>{
+      let tD=0,mD=0;Object.values(tr).forEach(dy=>{if(dy[name]?.committed>0){tD++;if(dy[name].met)mD++}});const p=tD>0?Math.round(mD/tD*100):0;
+      h+=`<tr class="member-row"><td>${name}</td>`;
+      days.forEach(d=>{const dk=toKey(d),isT=dk===tk,e=tr[dk]?.[name],hc=e&&e.committed>0,mt=e?.met||false;
+        h+=`<td class="${isT?"today-col":""}">`;
+        if(hc)h+=`<div class="commit-val">${e.committed}v</div><button class="check-btn ${mt?"checked":""}" onclick="togChk('${name}','${dk}')">${mt?"✓":""}</button>`;
+        else h+=`<input class="mini-input" type="text" inputmode="numeric" placeholder="–" onchange="setTC('${name}','${dk}',this.value)">`;
+        h+=`</td>`});
+      h+=`<td class="pct-cell"><div class="pct-num" style="color:${p>0?pctClr(p):"var(--w20)"}">${p}%</div><div class="pct-detail">${mD}/${tD}</div></td></tr>`;
+    });
+  });
+  h+=`</tbody>`;tb.innerHTML=h;
+}
+function togChk(n,dk){const t=load("ec-tracker");if(!t[dk])t[dk]={};if(!t[dk][n])t[dk][n]={committed:0,met:false};t[dk][n].met=!t[dk][n].met;save("ec-tracker",t);renderTracker()}
+function setTC(n,dk,v){const num=parseInt(v.replace(/\D/g,""))||0;if(!num)return;const t=load("ec-tracker");if(!t[dk])t[dk]={};t[dk][n]={committed:num,met:false};save("ec-tracker",t);renderTracker()}
+
+buildInputs();updClock();
+</script>
+</body>
+</html>
