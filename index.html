@@ -293,6 +293,7 @@ body{background:var(--dark);color:var(--white);font-family:'Outfit',sans-serif;m
 </div>
 
 <div class="toast" id="toast"></div>
+<iframe name="sync-iframe" id="sync-iframe" style="display:none"></iframe>
 <!-- Hidden compact avance poster for screenshot -->
 <div class="av-poster" id="avance-poster"></div>
 <!-- Hidden compact tracker poster for screenshot -->
@@ -312,98 +313,87 @@ let weekStart=getMonday(new Date()),selCorte=null;
 function load(k){try{return JSON.parse(localStorage.getItem(k)||"{}")}catch{return{}}}
 function save(k,d){try{localStorage.setItem(k,JSON.stringify(d))}catch{};cloudSave(k,d)}
 
-// ═══ CLOUD SYNC (Google Sheets backend) ═══
+// ═══ CLOUD SYNC (Google Sheets via iframe POST + fetch GET) ═══
 const API_URL="https://script.google.com/macros/s/AKfycbwKuJkwFp3OlnxBqbLrajxqMM225yJhmuhVmTFgJQPfp19tE8ToeEGhJiDpFA3p0Rh5/exec";
 
-let syncing=false;
-let saveQueue={};
-let saveTimer=null;
+let saveQueue={},saveTimer=null;
 
-// Google Apps Script redirects (302), so we MUST use redirect:"follow"
-// For write, we send data as URL param to avoid CORS issues with POST+redirect
-async function cloudSave(key,data){
+function cloudSave(key,data){
   if(!API_URL)return;
-  // Debounce: wait 1s after last save to batch changes
   saveQueue[key]=data;
   if(saveTimer)clearTimeout(saveTimer);
-  saveTimer=setTimeout(async()=>{
+  saveTimer=setTimeout(()=>{
     const pending={...saveQueue};saveQueue={};
     for(const k in pending){
       try{
-        const encoded=encodeURIComponent(JSON.stringify(pending[k]));
-        const url=`${API_URL}?action=write&key=${encodeURIComponent(k)}&data=${encoded}`;
-        const resp=await fetch(url,{method:"GET",redirect:"follow"});
-        const json=await resp.json();
-        if(json.success&&json.data){try{localStorage.setItem(k,json.data)}catch{}}
+        // Use hidden form + iframe to POST (bypasses CORS completely)
+        const iframe=document.getElementById("sync-iframe");
+        const form=document.createElement("form");
+        form.method="POST";form.action=API_URL;form.target="sync-iframe";form.style.display="none";
+        const f1=document.createElement("input");f1.name="action";f1.value="write";form.appendChild(f1);
+        const f2=document.createElement("input");f2.name="key";f2.value=k;form.appendChild(f2);
+        const f3=document.createElement("textarea");f3.name="data";f3.value=JSON.stringify(pending[k]);form.appendChild(f3);
+        document.body.appendChild(form);form.submit();document.body.removeChild(form);
         updateSyncBadge("ok");
-      }catch(e){console.log("Cloud save error:",e);updateSyncBadge("error")}
+      }catch(e){console.log("Save err:",e);updateSyncBadge("error")}
     }
-  },1000);
+  },800);
 }
 
 async function cloudLoad(key){
   if(!API_URL)return null;
   try{
-    const url=`${API_URL}?action=read&key=${encodeURIComponent(key)}`;
-    const resp=await fetch(url,{method:"GET",redirect:"follow"});
+    // Use Google Apps Script content service — fetch with redirect follow
+    const url=`${API_URL}?action=read&key=${encodeURIComponent(key)}&t=${Date.now()}`;
+    const resp=await fetch(url,{redirect:"follow"});
     const text=await resp.text();
+    // Apps Script sometimes wraps in HTML after redirect, try to extract JSON
     let json;
-    try{json=JSON.parse(text)}catch{console.log("Parse error:",text);return null}
+    try{json=JSON.parse(text)}catch{
+      // Try extracting JSON from possible HTML wrapper
+      const match=text.match(/\{[\s\S]*\}/);
+      if(match)json=JSON.parse(match[0]);
+      else{console.log("Cannot parse:",text.substring(0,200));return null}
+    }
     if(json.success&&json.data){
       let parsed;
       try{parsed=JSON.parse(json.data)}catch{return null}
-      // Merge cloud into local
-      const local=load(key);
-      const merged={...local};
+      if(Object.keys(parsed).length===0)return null;
+      // Merge: cloud wins
+      const local=load(key);const merged={...local};
       for(const dk in parsed){
         if(!merged[dk])merged[dk]=parsed[dk];
-        else{for(const mk in parsed[dk]){
-          // Cloud wins for cortes (more recent), merge at member level
-          if(parsed[dk][mk]&&typeof parsed[dk][mk]==="object"){
-            merged[dk][mk]={...merged[dk][mk],...parsed[dk][mk]};
-            // Merge cortes specifically
-            if(parsed[dk][mk].cortes&&merged[dk][mk].cortes){
-              merged[dk][mk].cortes={...merged[dk][mk].cortes,...parsed[dk][mk].cortes};
-            }
-          } else {
-            merged[dk][mk]=parsed[dk][mk];
+        else for(const mk in parsed[dk]){
+          const inc=parsed[dk][mk];
+          if(!merged[dk][mk])merged[dk][mk]=inc;
+          else{
+            merged[dk][mk]={...merged[dk][mk],...inc};
+            if(inc.cortes)merged[dk][mk].cortes={...(merged[dk][mk].cortes||{}),...inc.cortes};
           }
-        }}
+        }
       }
       try{localStorage.setItem(key,JSON.stringify(merged))}catch{}
       return merged;
     }
-  }catch(e){console.log("Cloud load error:",e)}
+  }catch(e){console.log("Load err:",e)}
   return null;
 }
 
-function updateSyncBadge(status){
-  const el=document.getElementById("sync-status");
-  if(!el)return;
-  if(status==="ok"){el.textContent="☁️ Sincronizado";el.style.color="var(--green)"}
-  else if(status==="loading"){el.textContent="🔄 Sincronizando...";el.style.color="var(--blue)"}
-  else if(status==="error"){el.textContent="❌ Error de sync";el.style.color="var(--fire)"}
-  else if(status==="offline"){el.textContent="📱 Solo local";el.style.color="var(--gold)"}
+function updateSyncBadge(s){
+  const el=document.getElementById("sync-status");if(!el)return;
+  const map={ok:["☁️ Sincronizado","var(--green)"],loading:["🔄 Sincronizando...","var(--blue)"],error:["❌ Error sync","var(--fire)"],offline:["📱 Solo local","var(--gold)"]};
+  const v=map[s]||map.offline;el.textContent=v[0];el.style.color=v[1];
 }
 
 async function syncAll(){
   if(!API_URL){updateSyncBadge("offline");return}
   updateSyncBadge("loading");
   try{
-    await cloudLoad("ec-tracker");
-    await cloudLoad("ec-avance");
+    await cloudLoad("ec-tracker");await cloudLoad("ec-avance");
     updateSyncBadge("ok");
-    // Re-render current tab
-    const activeBtn=document.querySelector(".nav-btn.active");
-    if(activeBtn){
-      const tab=activeBtn.dataset.tab;
-      if(tab==="tracker")renderTracker();
-      if(tab==="avance")renderAvance();
-    }
-  }catch(e){
-    console.log("syncAll error:",e);
-    updateSyncBadge("error");
-  }
+    const ab=document.querySelector(".nav-btn.active");
+    if(ab){const t=ab.dataset.tab;if(t==="tracker")renderTracker();if(t==="avance")renderAvance()}
+  }catch(e){console.log("syncAll err:",e);updateSyncBadge("error")}
 }
 function toKey(d){return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`}
 function getMonday(d){const t=new Date(d),dy=t.getDay();t.setDate(t.getDate()-dy+(dy===0?-6:1));t.setHours(0,0,0,0);return t}
@@ -490,13 +480,24 @@ function renderAvance(){
       const sc=pct>=100?"var(--green)":pct>=50?"var(--gold)":"var(--fire)";
       const st=pct>=100?"✅ CUMPLIDO":pct>=75?"🔥 CASI":pct>=50?"⚡ MITAD":`⏳ FALTAN ${left}`;
       const card=document.createElement("div");card.className="avance-member";
-      card.innerHTML=`<div class="av-mem-top"><div class="av-mem-name" style="color:${clr}">${name}</div><div class="av-mem-badge" style="background:${sc}20;color:${sc}">${st}</div></div>
-        <div class="av-mem-progress"><div class="av-mem-bar-wrap"><div class="av-mem-bar" style="width:${pct}%;background:${pct>=100?"var(--green)":clr}"></div></div><div class="av-mem-pct" style="color:${sc}">${pct}%</div></div>
-        <div class="av-mem-nums"><span>Meta: <b style="color:var(--white)">${com}</b></span><span>Hechas: <b style="color:var(--green)">${done}</b></span><span>Faltan: <b style="color:${left>0?"var(--gold)":"var(--green)"}">${left}</b></span></div>
-        <div class="av-input-row"><input class="av-input" type="text" inputmode="numeric" placeholder="Ventas corte ${selCorte}" value="${cv||""}" id="avi-${name.replace(/[^a-zA-Z]/g,"")}"><button class="av-save-btn" onclick="saveC('${name}','${dk}')">💾 Guardar</button></div>`;
+      card.innerHTML=`<div style="display:flex;align-items:center;gap:10px">
+          <div style="flex-grow:1">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><div class="av-mem-name" style="color:${clr}">${name}</div><div class="av-mem-badge" style="background:${sc}20;color:${sc}">${st}</div></div>
+            <div class="av-mem-progress"><div class="av-mem-bar-wrap"><div class="av-mem-bar" style="width:${pct}%;background:${pct>=100?"var(--green)":clr}"></div></div><div class="av-mem-pct" style="color:${sc}">${pct}%</div></div>
+            <div class="av-mem-nums" style="margin-top:4px"><span>Meta: <b style="color:var(--white)">${com}</b></span><span>Hechas: <b style="color:var(--green)">${done}</b></span><span>Faltan: <b style="color:${left>0?"var(--gold)":"var(--green)"}">${left}</b></span></div>
+          </div>
+          <div style="text-align:center;min-width:60px">
+            <div style="font-size:8px;color:var(--w30);margin-bottom:4px">${selCorte}</div>
+            <input class="av-input" type="text" inputmode="numeric" placeholder="0" value="${cv||""}" id="avi-${name.replace(/[^a-zA-Z]/g,"")}" style="width:56px;padding:8px 4px;font-size:18px;font-weight:700;border-radius:10px">
+          </div>
+        </div>`;
       mel.appendChild(card);
     });
   });
+  // Global save button
+  if(hasData){
+    mel.innerHTML+=`<button class="av-save-btn" onclick="saveAllCortes('${dk}')" style="width:100%;padding:14px;border-radius:14px;margin-top:14px;font-size:15px;letter-spacing:1px">💾 GUARDAR CORTE ${selCorte}</button>`;
+  }
   if(!hasData)mel.innerHTML=`<div style="text-align:center;padding:40px 20px;color:var(--w30)"><div style="font-size:40px;margin-bottom:12px">📋</div><div style="font-size:14px;font-weight:700;margin-bottom:6px">No hay compromiso para hoy</div><div style="font-size:12px">Ve a 🔥 COMPROMISO y genera el compromiso del día primero.</div></div>`;
 
   // Timeline
@@ -508,16 +509,25 @@ function renderAvance(){
   });
 }
 
-function saveC(name,dk){
-  const inp=document.getElementById("avi-"+name.replace(/[^a-zA-Z]/g,""));
-  const val=parseInt(inp.value.replace(/\D/g,""))||0;
-  const av=load("ec-avance");if(!av[dk]?.[name])return;
-  if(!av[dk][name].cortes)av[dk][name].cortes={};
-  av[dk][name].cortes[selCorte]=val;save("ec-avance",av);
-  // Auto-check tracker
-  let td=0;Object.values(av[dk][name].cortes).forEach(v=>td+=v);
-  const tr=load("ec-tracker");if(tr[dk]?.[name]){tr[dk][name].met=td>=tr[dk][name].committed;save("ec-tracker",tr)}
-  renderAvance();showToast(`✅ ${name}: ${val} en corte ${selCorte}`);
+function saveAllCortes(dk){
+  const av=load("ec-avance");if(!av[dk])return;
+  const tr=load("ec-tracker");
+  let count=0;
+  ALL.forEach(m=>{
+    if(!av[dk][m.name])return;
+    const inp=document.getElementById("avi-"+m.name.replace(/[^a-zA-Z]/g,""));
+    if(!inp)return;
+    const val=parseInt(inp.value.replace(/\D/g,""))||0;
+    if(!av[dk][m.name].cortes)av[dk][m.name].cortes={};
+    av[dk][m.name].cortes[selCorte]=val;
+    // Auto-check tracker
+    let td=0;Object.values(av[dk][m.name].cortes).forEach(v=>td+=v);
+    if(tr[dk]?.[m.name]){tr[dk][m.name].met=td>=tr[dk][m.name].committed}
+    if(val>0)count++;
+  });
+  save("ec-avance",av);save("ec-tracker",tr);
+  renderAvance();
+  showToast(`✅ Corte ${selCorte} guardado — ${count} registros`);
 }
 
 function updClock(){const n=new Date(),el=document.getElementById("live-clock");if(el)el.textContent=String(n.getHours()).padStart(2,"0")+":"+String(n.getMinutes()).padStart(2,"0")}
