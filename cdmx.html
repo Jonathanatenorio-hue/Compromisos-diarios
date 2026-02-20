@@ -198,6 +198,7 @@ body{background:var(--dark);color:var(--white);font-family:'Outfit',sans-serif;m
   <button class="nav-btn active" data-tab="generator" onclick="showTab('generator')">🔥 COMPROMISO</button>
   <button class="nav-btn" data-tab="avance" onclick="showTab('avance')">📈 AVANCE</button>
   <button class="nav-btn" data-tab="tracker" onclick="showTab('tracker')">📊 TRACKER</button>
+  <button class="nav-btn" data-tab="informe" onclick="showTab('informe')">📋 INFORME</button>
 </nav>
 <div style="text-align:center;padding:6px;background:var(--dark2);border-bottom:1px solid var(--w10)">
   <span id="sync-status" style="font-size:10px;color:var(--w30);letter-spacing:1px">⏳ Cargando...</span>
@@ -259,8 +260,9 @@ body{background:var(--dark);color:var(--white);font-family:'Outfit',sans-serif;m
   <div id="hour-timeline" style="margin-top:20px"></div>
   <div class="app-footer" style="margin-top:24px">EXPERTCELL CDMX — AVANCE AT&T</div>
   </div>
-  <div style="margin-top:16px">
-    <button class="btn-primary" style="width:100%" onclick="shareAvance()">📱 DESCARGAR IMAGEN DEL AVANCE</button>
+  <div style="margin-top:16px;display:flex;gap:10px">
+    <button class="btn-primary" style="flex:1" onclick="shareAvance()">📱 IMAGEN AVANCE</button>
+    <button class="btn-primary" style="flex:1;background:var(--gold);color:var(--dark)" onclick="cerrarDia()">🔒 CERRAR DÍA</button>
   </div>
 </div>
 
@@ -292,6 +294,24 @@ body{background:var(--dark);color:var(--white);font-family:'Outfit',sans-serif;m
   </div>
   <div class="app-footer">EXPERTCELL CDMX — TRACKER AT&T</div>
 </div>
+
+<!-- TAB 4: INFORME MENSUAL -->
+<div id="tab-informe" class="container hidden">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+    <button onclick="navMonth(-1)" style="background:var(--dark2);border:1px solid var(--w10);color:var(--white);padding:8px 14px;border-radius:10px;font-size:16px;cursor:pointer">◀</button>
+    <div style="text-align:center"><h2 style="font-family:'Bebas Neue',sans-serif;font-size:24px;letter-spacing:3px;color:var(--white);margin:0" id="inf-month"></h2></div>
+    <button onclick="navMonth(1)" style="background:var(--dark2);border:1px solid var(--w10);color:var(--white);padding:8px 14px;border-radius:10px;font-size:16px;cursor:pointer">▶</button>
+  </div>
+  <div id="inf-summary" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px"></div>
+  <div id="inf-daily" style="margin-bottom:20px"></div>
+  <div id="inf-ranking" style="margin-bottom:20px"></div>
+  <div class="app-footer" style="margin-top:24px">EXPERTCELL CDMX — INFORME MENSUAL AT&T</div>
+  <div style="margin-top:16px">
+    <button class="btn-primary" style="width:100%" onclick="shareInforme()">📱 DESCARGAR INFORME</button>
+  </div>
+</div>
+<!-- Hidden informe poster -->
+<div class="av-poster" id="informe-poster"></div>
 
 <div class="toast" id="toast"></div>
 <!-- Hidden compact avance poster for screenshot -->
@@ -397,7 +417,7 @@ async function syncAll(){
   if(!API_URL){updateSyncBadge("offline");loadTodayCommit();return}
   updateSyncBadge("loading");
   try{
-    await cloudLoad("ec-cdmx-tracker");await cloudLoad("ec-cdmx-avance");
+    await cloudLoad("ec-cdmx-tracker");await cloudLoad("ec-cdmx-avance");await cloudLoad("ec-cdmx-cierres");
     updateSyncBadge("ok");
     loadTodayCommit();
     const ab=document.querySelector(".nav-btn.active");
@@ -449,9 +469,9 @@ function calcProjection(dd,totalDone){
 }
 
 function showTab(tab){
-  ["generator","avance","tracker"].forEach(t=>document.getElementById("tab-"+t).classList.toggle("hidden",t!==tab));
+  ["generator","avance","tracker","informe"].forEach(t=>document.getElementById("tab-"+t).classList.toggle("hidden",t!==tab));
   document.querySelectorAll(".nav-btn").forEach(b=>b.classList.toggle("active",b.dataset.tab===tab));
-  if(tab==="tracker")renderTracker();if(tab==="avance")renderAvance();
+  if(tab==="tracker")renderTracker();if(tab==="avance")renderAvance();if(tab==="informe")renderInforme();
 }
 
 // ═══ TAB 1 ═══
@@ -870,6 +890,274 @@ function shareTracker(){
       poster.style.position="absolute";poster.style.left="-9999px";
       canvas.toBlob(blob=>{
         const fname=`ExpertCell_Tracker_Sem${days[0].getDate()}-${days[0].getMonth()+1}.png`;
+        if(navigator.share&&navigator.canShare){const file=new File([blob],fname,{type:"image/png"});if(navigator.canShare({files:[file]})){navigator.share({files:[file]}).catch(()=>downloadBlob(blob,fname));return}}
+        downloadBlob(blob,fname);
+      },"image/png");
+    }).catch(()=>{poster.style.position="absolute";poster.style.left="-9999px";showToast("❌ Error")});
+  },100);
+}
+
+// ═══ CIERRE DIARIO ═══
+// Storage: ec-cdmx-cierres = { "2026-02-19": { meta:63, resultado:41, proyeccion:46, members:{name:{meta:10,resultado:7},...}, closedAt:"19:30" } }
+async function cerrarDia(dateOverride){
+  const now=dateOverride?new Date(dateOverride+"T19:00:00"):new Date();
+  const dk=dateOverride||toKey(now);
+  const av=load("ec-cdmx-avance"),dd=av[dk]||{};
+  const cierres=load("ec-cdmx-cierres");
+
+  if(cierres[dk]&&!dateOverride){
+    if(!confirm("Ya hay un cierre para hoy. ¿Deseas sobreescribirlo?"))return;
+  }
+
+  const coordSet=new Set(TEAM.coordinadores);
+  let meta=0,resultado=0;
+  const members={};
+
+  ALL.forEach(m=>{
+    const d=dd[m.name];if(!d)return;
+    const com=d.committed||0;
+    let done=0;
+    if(d.cortes){let mx=0;CORTES.forEach(c=>{const v=d.cortes[c];if(v!=null&&v>mx)mx=v});done=mx}
+    members[m.name]={meta:com,resultado:done,group:m.group};
+    if(!coordSet.has(m.name)){meta+=com;resultado+=done}
+  });
+
+  // Projection
+  let proj=null;
+  const corteHours={"11:00":1,"12:00":2,"13:00":3,"14:00":4,"15:00":5,"16:00":6,"17:00":7,"18:00":8,"19:00+":9};
+  let lastCorte=null;
+  for(let i=CORTES.length-1;i>=0;i--){
+    const c=CORTES[i];let has=false;
+    ALL.forEach(m=>{const d=dd[m.name];if(d&&!coordSet.has(m.name)&&d.cortes&&d.cortes[c])has=true});
+    if(has){lastCorte=c;break}
+  }
+  if(lastCorte&&corteHours[lastCorte]&&resultado>0){
+    proj=Math.round((resultado/corteHours[lastCorte])*9);
+  }
+
+  cierres[dk]={meta,resultado,proyeccion:proj,members,closedAt:String(now.getHours()).padStart(2,"0")+":"+String(now.getMinutes()).padStart(2,"0")};
+  await save("ec-cdmx-cierres",cierres);
+  showToast("🔒 Cierre del día guardado");
+}
+
+// Auto-close: when saving corte 19:00+, auto-generate cierre
+const origSaveAllCortes=saveAllCortes;
+saveAllCortes=async function(dk){
+  await origSaveAllCortes(dk);
+  if(selCorte==="19:00+"){
+    const cierres=load("ec-cdmx-cierres");
+    if(!cierres[dk]){await cerrarDia();showToast("🔒 Cierre automático generado")}
+  }
+};
+
+// ═══ TAB 4: INFORME MENSUAL ═══
+let infMonth=new Date().getMonth(),infYear=new Date().getFullYear();
+
+function navMonth(dir){
+  infMonth+=dir;
+  if(infMonth>11){infMonth=0;infYear++}
+  if(infMonth<0){infMonth=11;infYear--}
+  renderInforme();
+}
+
+function renderInforme(){
+  const cierres=load("ec-cdmx-cierres");
+  const coordSet=new Set(TEAM.coordinadores);
+  document.getElementById("inf-month").textContent=MO_ES[infMonth+1]+" "+infYear;
+
+  // Get all days in month that have cierres
+  const daysInMonth=new Date(infYear,infMonth+1,0).getDate();
+  const dayKeys=[];
+  for(let d=1;d<=daysInMonth;d++){
+    const dk=`${infYear}-${String(infMonth+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+    dayKeys.push({dk,day:d,data:cierres[dk]||null});
+  }
+  const withData=dayKeys.filter(d=>d.data);
+
+  // Summary cards
+  let totalMeta=0,totalRes=0,totalProj=0,projCount=0,diasCumplidos=0;
+  withData.forEach(d=>{
+    totalMeta+=d.data.meta;totalRes+=d.data.resultado;
+    if(d.data.proyeccion!=null){totalProj+=d.data.proyeccion;projCount++}
+    if(d.data.resultado>=d.data.meta)diasCumplidos++;
+  });
+  const pctGlobal=totalMeta>0?Math.round(totalRes/totalMeta*100):0;
+  const avgProj=projCount>0?Math.round(totalProj/projCount):0;
+
+  const sumEl=document.getElementById("inf-summary");
+  sumEl.innerHTML=`
+    <div class="av-card"><div class="av-label">DÍAS</div><div class="av-num" style="color:var(--white)">${withData.length}</div></div>
+    <div class="av-card"><div class="av-label">CUMPLIMIENTO</div><div class="av-num" style="color:${pctClr(pctGlobal)}">${pctGlobal}%</div></div>
+    <div class="av-card"><div class="av-label">META TOTAL</div><div class="av-num" style="color:var(--fire)">${totalMeta}</div></div>
+    <div class="av-card"><div class="av-label">RESULTADO</div><div class="av-num" style="color:var(--green)">${totalRes}</div></div>`;
+
+  // Daily table
+  let h=`<div style="font-family:'Bebas Neue',sans-serif;font-size:16px;color:var(--w50);letter-spacing:2px;margin-bottom:10px">META VS RESULTADO POR DÍA</div>`;
+  h+=`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">
+    <tr style="color:var(--w30);text-align:center;border-bottom:1px solid var(--w10)">
+      <th style="padding:8px 6px;text-align:left">DÍA</th><th>META</th><th>RESULT</th><th>%</th><th>PROY</th><th>REAL</th></tr>`;
+  dayKeys.forEach(d=>{
+    if(!d.data)return;
+    const p=d.data.meta>0?Math.round(d.data.resultado/d.data.meta*100):0;
+    const clr=pctClr(p);
+    const dayName=DS[new Date(infYear,infMonth,d.day).getDay()];
+    const projReal=d.data.proyeccion!=null?d.data.proyeccion:"-";
+    const projDiff=d.data.proyeccion!=null?(d.data.resultado>=d.data.proyeccion?"✅":"⬇️"):"-";
+    h+=`<tr style="border-bottom:1px solid var(--w10);text-align:center">
+      <td style="padding:8px 6px;text-align:left;color:var(--w50)">${dayName} ${d.day}</td>
+      <td style="color:var(--fire);font-weight:700">${d.data.meta}</td>
+      <td style="color:var(--green);font-weight:700">${d.data.resultado}</td>
+      <td style="color:${clr};font-weight:700">${p}%</td>
+      <td style="color:var(--blue)">${projReal}</td>
+      <td>${projDiff}</td></tr>`;
+  });
+  h+=`</table></div>`;
+
+  // Ranking
+  h+=`<div style="font-family:'Bebas Neue',sans-serif;font-size:16px;color:var(--w50);letter-spacing:2px;margin:20px 0 10px">🏆 RANKING SUPERVISORES</div>`;
+  const ranking=[];
+  TEAM.supervisores.forEach(name=>{
+    let mT=0,rT=0,dias=0;
+    withData.forEach(d=>{
+      const m=d.data.members[name];
+      if(m){mT+=m.meta;rT+=m.resultado;if(m.meta>0)dias++}
+    });
+    const pct=mT>0?Math.round(rT/mT*100):0;
+    ranking.push({name,meta:mT,resultado:rT,pct,dias});
+  });
+  // Add capacitadores
+  TEAM.capacitadores.forEach(name=>{
+    let mT=0,rT=0,dias=0;
+    withData.forEach(d=>{
+      const m=d.data.members[name];
+      if(m){mT+=m.meta;rT+=m.resultado;if(m.meta>0)dias++}
+    });
+    const pct=mT>0?Math.round(rT/mT*100):0;
+    ranking.push({name,meta:mT,resultado:rT,pct,dias});
+  });
+  ranking.sort((a,b)=>b.pct-a.pct);
+
+  const medals=["🥇","🥈","🥉"];
+  ranking.forEach((r,i)=>{
+    const medal=i<3?medals[i]:"";
+    const clr=pctClr(r.pct);
+    h+=`<div style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--dark2);border-radius:10px;margin-bottom:6px;border:1px solid ${r.pct>=80?"rgba(0,221,119,0.2)":"var(--w10)"}">
+      <div style="font-size:20px;min-width:30px;text-align:center">${medal||i+1}</div>
+      <div style="flex-grow:1">
+        <div style="font-weight:700;color:var(--white);font-size:13px">${r.name}</div>
+        <div style="font-size:10px;color:var(--w30)">Meta: ${r.meta} · Resultado: ${r.resultado} · ${r.dias} días</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;color:${clr}">${r.pct}%</div>
+      </div>
+    </div>`;
+  });
+
+  // Per person detail
+  h+=`<div style="font-family:'Bebas Neue',sans-serif;font-size:16px;color:var(--w50);letter-spacing:2px;margin:20px 0 10px">📊 CUMPLIMIENTO POR PERSONA</div>`;
+  ["supervisores","capacitadores"].forEach(g=>{
+    TEAM[g].forEach(name=>{
+      let mT=0,rT=0,cumplidos=0,dias=0;
+      withData.forEach(d=>{
+        const m=d.data.members[name];
+        if(m&&m.meta>0){mT+=m.meta;rT+=m.resultado;dias++;if(m.resultado>=m.meta)cumplidos++}
+      });
+      const pct=mT>0?Math.round(rT/mT*100):0;
+      const cumPct=dias>0?Math.round(cumplidos/dias*100):0;
+      const clr=pctClr(pct);
+      h+=`<div style="padding:10px;background:var(--dark2);border-radius:10px;margin-bottom:6px;border-left:3px solid ${clr}">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="font-weight:700;color:var(--white);font-size:13px">${name}</span>
+          <span style="font-family:'Bebas Neue',sans-serif;font-size:18px;color:${clr}">${pct}%</span>
+        </div>
+        <div style="font-size:10px;color:var(--w30);margin-top:4px">Meta: ${mT} · Resultado: ${rT} · Cumplió ${cumplidos}/${dias} días (${cumPct}%)</div>
+        <div style="height:4px;background:var(--w10);border-radius:2px;margin-top:6px"><div style="height:100%;border-radius:2px;background:${clr};width:${Math.min(100,pct)}%"></div></div>
+      </div>`;
+    });
+  });
+
+  document.getElementById("inf-daily").innerHTML=h;
+
+  // No data message
+  if(withData.length===0){
+    document.getElementById("inf-daily").innerHTML=`<div style="text-align:center;padding:40px 20px;color:var(--w30)"><div style="font-size:40px;margin-bottom:12px">📋</div><div style="font-size:14px;font-weight:700;margin-bottom:6px">No hay cierres para ${MO_ES[infMonth+1]}</div><div style="font-size:12px">Usa el botón "🔒 CERRAR DÍA" en la pestaña de avance para generar cierres diarios.</div></div>`;
+  }
+}
+
+// ═══ SHARE INFORME ═══
+function shareInforme(){
+  const cierres=load("ec-cdmx-cierres");
+  const coordSet=new Set(TEAM.coordinadores);
+  const poster=document.getElementById("informe-poster");
+  const daysInMonth=new Date(infYear,infMonth+1,0).getDate();
+  const dayKeys=[];
+  for(let d=1;d<=daysInMonth;d++){
+    const dk=`${infYear}-${String(infMonth+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+    if(cierres[dk])dayKeys.push({dk,day:d,data:cierres[dk]});
+  }
+  if(!dayKeys.length){showToast("⚠️ No hay datos para generar informe");return}
+
+  let totalMeta=0,totalRes=0;
+  dayKeys.forEach(d=>{totalMeta+=d.data.meta;totalRes+=d.data.resultado});
+  const pctG=totalMeta>0?Math.round(totalRes/totalMeta*100):0;
+  const barClr=pctG>=80?"#00DD77":pctG>=50?"#FFB800":"#FF4D00";
+
+  let h=`<div class="avp-badge"><span>INFORME ${MO_ES[infMonth+1]} ${infYear}</span></div>`;
+  h+=`<div class="avp-title">REPORTE MENSUAL</div>`;
+  h+=`<div class="avp-sub">ExpertCell CDMX · <b>${pctG}% cumplimiento</b> · ${dayKeys.length} días</div>`;
+  h+=`<div class="avp-summary" style="grid-template-columns:repeat(3,1fr)">
+    <div class="avp-scard"><div class="avp-sl">META</div><div class="avp-sn" style="color:#FF4D00">${totalMeta}</div></div>
+    <div class="avp-scard"><div class="avp-sl">RESULTADO</div><div class="avp-sn" style="color:#00DD77">${totalRes}</div></div>
+    <div class="avp-scard"><div class="avp-sl">CUMPL.</div><div class="avp-sn" style="color:${barClr}">${pctG}%</div></div>
+  </div>`;
+  h+=`<div class="avp-bar-wrap"><div class="avp-bar-fill" style="width:${pctG}%;background:linear-gradient(90deg,${barClr},#FFB800)"></div></div>`;
+
+  // Daily rows
+  h+=`<div style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:1px;color:#808080;margin:10px 0 6px">META VS RESULTADO</div>`;
+  dayKeys.forEach(d=>{
+    const p=d.data.meta>0?Math.round(d.data.resultado/d.data.meta*100):0;
+    const c=p>=80?"#00DD77":p>=50?"#FFB800":"#FF4D00";
+    const dn=DS[new Date(infYear,infMonth,d.day).getDay()];
+    h+=`<div style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:10px">
+      <span style="width:45px;color:#666">${dn} ${d.day}</span>
+      <div style="flex-grow:1;height:12px;background:#15151F;border-radius:3px;overflow:hidden;position:relative">
+        <div style="height:100%;width:${Math.min(100,p)}%;background:${c};border-radius:3px"></div>
+      </div>
+      <span style="width:28px;text-align:right;color:#00DD77;font-weight:700">${d.data.resultado}</span>
+      <span style="width:20px;text-align:right;color:${c};font-family:'Bebas Neue',sans-serif;font-size:12px">${p}%</span>
+    </div>`;
+  });
+
+  // Ranking
+  h+=`<div style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:1px;color:#808080;margin:12px 0 6px">🏆 RANKING</div>`;
+  const rk=[];
+  [...TEAM.supervisores,...TEAM.capacitadores].forEach(name=>{
+    let mT=0,rT=0;
+    dayKeys.forEach(d=>{const m=d.data.members[name];if(m){mT+=m.meta;rT+=m.resultado}});
+    rk.push({name,pct:mT>0?Math.round(rT/mT*100):0,res:rT});
+  });
+  rk.sort((a,b)=>b.pct-a.pct);
+  const medals=["🥇","🥈","🥉"];
+  rk.forEach((r,i)=>{
+    const c=r.pct>=80?"#00DD77":r.pct>=50?"#FFB800":"#FF4D00";
+    h+=`<div style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:10px">
+      <span style="width:20px;text-align:center">${i<3?medals[i]:i+1}</span>
+      <span style="flex-grow:1;color:#ccc;font-weight:600">${r.name}</span>
+      <span style="color:#00DD77;font-weight:700">${r.res}</span>
+      <span style="width:32px;text-align:right;color:${c};font-family:'Bebas Neue',sans-serif;font-size:13px">${r.pct}%</span>
+    </div>`;
+  });
+
+  h+=`<div class="avp-footer">EXPERTCELL CDMX — INFORME MENSUAL AT&T · PALABRA DE CAMPEONES</div>`;
+  poster.innerHTML=h;
+
+  poster.style.position="fixed";poster.style.left="0";poster.style.top="0";poster.style.zIndex="-1";poster.style.opacity="1";
+  showToast("📸 Generando informe...");
+  setTimeout(()=>{
+    html2canvas(poster,{backgroundColor:"#0A0A12",scale:3,useCORS:true,logging:false,width:420}).then(canvas=>{
+      poster.style.position="absolute";poster.style.left="-9999px";
+      canvas.toBlob(blob=>{
+        const fname=`ExpertCell_Informe_${MO_ES[infMonth+1]}_${infYear}.png`;
         if(navigator.share&&navigator.canShare){const file=new File([blob],fname,{type:"image/png"});if(navigator.canShare({files:[file]})){navigator.share({files:[file]}).catch(()=>downloadBlob(blob,fname));return}}
         downloadBlob(blob,fname);
       },"image/png");
