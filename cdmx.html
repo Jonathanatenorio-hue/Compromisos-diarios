@@ -343,7 +343,6 @@ let saving=false;
 async function cloudSave(key,data){
   if(!API_URL)return;
   if(saving){
-    // Queue for after current save finishes
     setTimeout(()=>cloudSave(key,data),500);
     return;
   }
@@ -357,8 +356,19 @@ async function cloudSave(key,data){
     try{
       const json=JSON.parse(text);
       if(json.success){
-        // Update local with server merged data
-        if(json.data)try{localStorage.setItem(key,json.data)}catch{}
+        // Merge server response but KEEP today's local data (local is authoritative for today)
+        if(json.data){
+          try{
+            const serverData=JSON.parse(json.data);
+            const today=toKey(new Date());
+            const local=load(key);
+            // Start from server data (has all history)
+            const merged={...serverData};
+            // But for today, local wins
+            if(local[today])merged[today]=local[today];
+            localStorage.setItem(key,JSON.stringify(merged));
+          }catch{}
+        }
         updateSyncBadge("ok");
       }else{
         console.log("Write fail:",json.error);updateSyncBadge("error");
