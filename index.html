@@ -546,7 +546,11 @@ function renderAvance(){
     active.forEach(name=>{
       const md=dd[name],com=md.committed||0;let done=getMemberDone(md);
       const left=Math.max(0,com-done),pct=com>0?Math.min(100,Math.round(done/com*100)):0;
-      const cv=md.cortes?.[selCorte]||"",clr=gClr(g);
+      const cv=md.cortes?.[selCorte];
+      const hasCorteVal=cv!==undefined&&cv!==null&&cv!=="";
+      // Show last known acumulado as reference
+      const lastAcum=getMemberDone(md);
+      const clr=gClr(g);
       const sc=pct>=100?"var(--green)":pct>=50?"var(--gold)":"var(--fire)";
       const st=pct>=100?"✅ CUMPLIDO":pct>=75?"🔥 CASI":pct>=50?"⚡ MITAD":`⏳ FALTAN ${left}`;
       const card=document.createElement("div");card.className="avance-member";
@@ -558,7 +562,7 @@ function renderAvance(){
           </div>
           <div style="text-align:center;min-width:60px">
             <div style="font-size:8px;color:var(--w30);margin-bottom:4px">ACUM ${selCorte}</div>
-            <input class="av-input" type="text" inputmode="numeric" placeholder="0" value="${cv||""}" id="avi-${name.replace(/[^a-zA-Z]/g,"")}" style="width:56px;padding:8px 4px;font-size:18px;font-weight:700;border-radius:10px">
+            <input class="av-input" type="text" inputmode="numeric" placeholder="${lastAcum}" value="${hasCorteVal?cv:""}" id="avi-${name.replace(/[^a-zA-Z]/g,"")}" style="width:56px;padding:8px 4px;font-size:18px;font-weight:700;border-radius:10px">
           </div>
         </div>`;
       mel.appendChild(card);
@@ -587,15 +591,18 @@ async function saveAllCortes(dk){
     if(!av[dk][m.name])return;
     const inp=document.getElementById("avi-"+m.name.replace(/[^a-zA-Z]/g,""));
     if(!inp)return;
-    const val=parseInt(inp.value.replace(/\D/g,""))||0;
+    const raw=inp.value.trim();
+    if(raw==="")return; // Skip empty — don't overwrite with 0
+    const val=parseInt(raw.replace(/\D/g,""))||0;
     if(!av[dk][m.name].cortes)av[dk][m.name].cortes={};
     av[dk][m.name].cortes[selCorte]=val;
     // Auto-check tracker: last acumulado >= committed
     let lastAcum=0;
     CORTES.forEach(c=>{if(av[dk][m.name].cortes[c]!==undefined&&av[dk][m.name].cortes[c]!==null)lastAcum=av[dk][m.name].cortes[c]});
     if(tr[dk]?.[m.name]){tr[dk][m.name].met=lastAcum>=tr[dk][m.name].committed}
-    if(val>0)count++;
+    count++;
   });
+  if(count===0){showToast("⚠️ No hay datos que guardar");return}
   await save("ec-avance",av);
   await save("ec-tracker",tr);
   renderAvance();
