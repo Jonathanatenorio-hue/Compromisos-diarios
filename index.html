@@ -371,14 +371,11 @@ async function cloudSave(key,data){
 async function cloudLoad(key){
   if(!API_URL)return null;
   try{
-    // Use Google Apps Script content service — fetch with redirect follow
     const url=`${API_URL}?action=read&key=${encodeURIComponent(key)}&t=${Date.now()}`;
     const resp=await fetch(url,{redirect:"follow"});
     const text=await resp.text();
-    // Apps Script sometimes wraps in HTML after redirect, try to extract JSON
     let json;
     try{json=JSON.parse(text)}catch{
-      // Try extracting JSON from possible HTML wrapper
       const match=text.match(/\{[\s\S]*\}/);
       if(match)json=JSON.parse(match[0]);
       else{console.log("Cannot parse:",text.substring(0,200));return null}
@@ -387,18 +384,14 @@ async function cloudLoad(key){
       let parsed;
       try{parsed=JSON.parse(json.data)}catch{return null}
       if(Object.keys(parsed).length===0)return null;
-      // Merge: cloud wins
-      const local=load(key);const merged={...local};
-      for(const dk in parsed){
-        if(!merged[dk])merged[dk]=parsed[dk];
-        else for(const mk in parsed[dk]){
-          const inc=parsed[dk][mk];
-          if(!merged[dk][mk])merged[dk][mk]=inc;
-          else{
-            merged[dk][mk]={...merged[dk][mk],...inc};
-            if(inc.cortes)merged[dk][mk].cortes={...(merged[dk][mk].cortes||{}),...inc.cortes};
-          }
-        }
+      const local=load(key);const merged={...parsed}; // Start from cloud
+      const today=toKey(new Date());
+      // For today: LOCAL wins (generate/saveCortes are authoritative)
+      if(local[today])merged[today]=local[today];
+      // For other days: CLOUD wins (pull historical data)
+      for(const dk in local){
+        if(dk===today)continue;
+        if(!merged[dk])merged[dk]=local[dk];
       }
       try{localStorage.setItem(key,JSON.stringify(merged))}catch{}
       return merged;
