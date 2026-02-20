@@ -498,12 +498,12 @@ function renderAvance(){
 
   // Corte buttons — ACUMULADO logic helpers
   const coordNames=new Set(TEAM.coordinadores);
-  // Total done = last (highest) acumulado reported
+  // Total done = highest acumulado reported across all cortes
   function getMemberDone(md){
     if(!md||!md.cortes)return 0;
-    let last=0;
-    CORTES.forEach(c=>{if(md.cortes[c]!==undefined&&md.cortes[c]!==null&&md.cortes[c]!=="")last=md.cortes[c]});
-    return last;
+    let max=0;
+    CORTES.forEach(c=>{const v=md.cortes[c];if(v!==undefined&&v!==null&&v!==""&&v>max)max=v});
+    return max;
   }
   // New sales in a specific corte = acumulado[corte] - acumulado[previous corte]
   function getCorteNew(md,corte){
@@ -620,7 +620,7 @@ function shareAvance(){
   // Calc totals — acumulado: last corte = total done
   let tCom=0,tDone=0;
   const coordSet=new Set(TEAM.coordinadores);
-  function _getDone(md){if(!md||!md.cortes)return 0;let l=0;CORTES.forEach(c=>{if(md.cortes[c]!=null)l=md.cortes[c]});return l}
+  function _getDone(md){if(!md||!md.cortes)return 0;let mx=0;CORTES.forEach(c=>{const v=md.cortes[c];if(v!=null&&v>mx)mx=v});return mx}
   function _getNew(md,corte){if(!md||!md.cortes||!md.cortes[corte])return 0;const idx=CORTES.indexOf(corte);let p=0;for(let i=idx-1;i>=0;i--){if(md.cortes[CORTES[i]]!=null){p=md.cortes[CORTES[i]];break}}return Math.max(0,md.cortes[corte]-p)}
   ALL.forEach(m=>{const d=dd[m.name];if(d&&!coordSet.has(m.name)){tCom+=d.committed||0;tDone+=_getDone(d)}});
   const remaining=Math.max(0,tCom-tDone);
