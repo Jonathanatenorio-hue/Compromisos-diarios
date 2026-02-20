@@ -514,8 +514,15 @@ async function generate(){
     h+=`</div></div>`;ct.innerHTML+=h;
   });
   const dk=toKey(now),tr=load("ec-cdmx-tracker"),av=load("ec-cdmx-avance");
-  if(!tr[dk])tr[dk]={};if(!av[dk])av[dk]={};
-  ALL.forEach(m=>{if(commits[m.name]>0){tr[dk][m.name]={committed:commits[m.name],met:tr[dk]?.[m.name]?.met||false};if(!av[dk][m.name])av[dk][m.name]={committed:commits[m.name],cortes:{}}}});
+  // Save old cortes before resetting
+  const oldCortes={};
+  if(av[dk]){ALL.forEach(m=>{if(av[dk][m.name]?.cortes)oldCortes[m.name]=av[dk][m.name].cortes})}
+  // REPLACE today's data completely
+  tr[dk]={};av[dk]={};
+  ALL.forEach(m=>{if(commits[m.name]>0){
+    tr[dk][m.name]={committed:commits[m.name],met:false};
+    av[dk][m.name]={committed:commits[m.name],cortes:oldCortes[m.name]||{}};
+  }});
   await save("ec-cdmx-tracker",tr);await save("ec-cdmx-avance",av);
   document.getElementById("input-view").classList.add("hidden");document.getElementById("poster-view").classList.remove("hidden");
   showToast("✅ Compromiso guardado");
