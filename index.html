@@ -301,6 +301,8 @@ body{background:var(--dark);color:var(--white);font-family:'Outfit',sans-serif;m
 
 <script>
 const TEAM={supervisores:["Jorge","Reyna","Fer","Alfred","Alan","Carlos"],coordinadores:["Eduardo","Luisa"],capacitadores:["Tomás","Irán"]};
+// Coordinator auto-calc: each coordinator = sum of their assigned members
+const COORD_MAP={"Luisa":["Jorge","Tomás","Fer"],"Eduardo":["Reyna","Alfred","Alan","Carlos","Irán"]};
 const GM={supervisores:{icon:"⚡",cls:"ps",ic:"",clr:"var(--fire)"},coordinadores:{icon:"👑",cls:"pc",ic:"coord",clr:"var(--gold)"},capacitadores:{icon:"📘",cls:"pp",ic:"cap",clr:"var(--blue)"}};
 const ALL=[];Object.keys(TEAM).forEach(g=>TEAM[g].forEach(n=>ALL.push({name:n,group:g})));
 const DAYS_ES=["DOMINGO","LUNES","MARTES","MIÉRCOLES","JUEVES","VIERNES","SÁBADO"];
@@ -458,11 +460,23 @@ function buildInputs(){
   ["supervisores","coordinadores","capacitadores"].forEach(g=>{
     const gid=g==="supervisores"?"grid-sup":g==="coordinadores"?"grid-coord":"grid-cap";
     const el=document.getElementById(gid);el.innerHTML="";
-    TEAM[g].forEach(n=>{const c=document.createElement("div");c.className=`input-card ${GM[g].ic}`;c.innerHTML=`<div class="name">${n.toUpperCase()}</div><input type="text" inputmode="numeric" placeholder="0" oninput="onCI('${n}',this.value)" id="inp-${n.replace(/[^a-zA-Z]/g,"")}">`;el.appendChild(c)});
+    TEAM[g].forEach(n=>{
+      const isCoord=COORD_MAP[n]!==undefined;
+      const c=document.createElement("div");c.className=`input-card ${GM[g].ic}`;
+      c.innerHTML=`<div class="name">${n.toUpperCase()}</div><input type="text" inputmode="numeric" placeholder="0" ${isCoord?'readonly style="opacity:0.6;background:rgba(255,184,0,0.1)"':'oninput="onCI(\''+n+'\',this.value)"'} id="inp-${n.replace(/[^a-zA-Z]/g,"")}">`;
+      el.appendChild(c);
+    });
   });
 }
 function onCI(n,v){commits[n]=parseInt(v.replace(/\D/g,""))||0;updTotals()}
 function updTotals(){
+  // Auto-calc coordinators from their assigned members
+  for(const coord in COORD_MAP){
+    let s=0;COORD_MAP[coord].forEach(n=>s+=commits[n]);
+    commits[coord]=s;
+    const inp=document.getElementById("inp-"+coord.replace(/[^a-zA-Z]/g,""));
+    if(inp)inp.value=s||"";
+  }
   let gt=0;["supervisores","coordinadores","capacitadores"].forEach(g=>{let s=0;TEAM[g].forEach(n=>s+=commits[n]);document.getElementById(g==="supervisores"?"total-sup":g==="coordinadores"?"total-coord":"total-cap").textContent=s+" ventas";if(g!=="coordinadores")gt+=s});
   document.getElementById("grand-total").textContent=gt;document.getElementById("btn-gen").disabled=gt===0;
 }
@@ -553,6 +567,7 @@ function renderAvance(){
       const clr=gClr(g);
       const sc=pct>=100?"var(--green)":pct>=50?"var(--gold)":"var(--fire)";
       const st=pct>=100?"✅ CUMPLIDO":pct>=75?"🔥 CASI":pct>=50?"⚡ MITAD":`⏳ FALTAN ${left}`;
+      const isCoord=COORD_MAP[name]!==undefined;
       const card=document.createElement("div");card.className="avance-member";
       card.innerHTML=`<div style="display:flex;align-items:center;gap:10px">
           <div style="flex-grow:1">
@@ -561,8 +576,8 @@ function renderAvance(){
             <div class="av-mem-nums" style="margin-top:4px"><span>Meta: <b style="color:var(--white)">${com}</b></span><span>Hechas: <b style="color:var(--green)">${done}</b></span><span>Faltan: <b style="color:${left>0?"var(--gold)":"var(--green)"}">${left}</b></span></div>
           </div>
           <div style="text-align:center;min-width:60px">
-            <div style="font-size:8px;color:var(--w30);margin-bottom:4px">ACUM ${selCorte}</div>
-            <input class="av-input" type="text" inputmode="numeric" placeholder="${lastAcum}" value="${hasCorteVal?cv:""}" id="avi-${name.replace(/[^a-zA-Z]/g,"")}" style="width:56px;padding:8px 4px;font-size:18px;font-weight:700;border-radius:10px">
+            <div style="font-size:8px;color:var(--w30);margin-bottom:4px">${isCoord?"AUTO":"ACUM "+selCorte}</div>
+            <input class="av-input" type="text" inputmode="numeric" placeholder="${lastAcum}" value="${hasCorteVal?cv:""}" id="avi-${name.replace(/[^a-zA-Z]/g,"")}" ${isCoord?'readonly style="width:56px;padding:8px 4px;font-size:18px;font-weight:700;border-radius:10px;opacity:0.6;background:rgba(255,184,0,0.15)"':'style="width:56px;padding:8px 4px;font-size:18px;font-weight:700;border-radius:10px"'}>
           </div>
         </div>`;
       mel.appendChild(card);
@@ -587,20 +602,32 @@ async function saveAllCortes(dk){
   const av=load("ec-avance");if(!av[dk])return;
   const tr=load("ec-tracker");
   let count=0;
+  // Save non-coordinator inputs
   ALL.forEach(m=>{
-    if(!av[dk][m.name])return;
+    if(!av[dk][m.name]||COORD_MAP[m.name])return;
     const inp=document.getElementById("avi-"+m.name.replace(/[^a-zA-Z]/g,""));
     if(!inp)return;
     const raw=inp.value.trim();
-    if(raw==="")return; // Skip empty — don't overwrite with 0
+    if(raw==="")return;
     const val=parseInt(raw.replace(/\D/g,""))||0;
     if(!av[dk][m.name].cortes)av[dk][m.name].cortes={};
     av[dk][m.name].cortes[selCorte]=val;
-    // Auto-check tracker: last acumulado >= committed
-    let lastAcum=0;
-    CORTES.forEach(c=>{if(av[dk][m.name].cortes[c]!==undefined&&av[dk][m.name].cortes[c]!==null)lastAcum=av[dk][m.name].cortes[c]});
-    if(tr[dk]?.[m.name]){tr[dk][m.name].met=lastAcum>=tr[dk][m.name].committed}
     count++;
+  });
+  // Auto-calc coordinator cortes
+  for(const coord in COORD_MAP){
+    if(!av[dk][coord])continue;
+    let sum=0;
+    COORD_MAP[coord].forEach(n=>{if(av[dk][n]?.cortes?.[selCorte]!=null)sum+=av[dk][n].cortes[selCorte]});
+    if(!av[dk][coord].cortes)av[dk][coord].cortes={};
+    if(sum>0||count>0)av[dk][coord].cortes[selCorte]=sum;
+  }
+  // Auto-check tracker for all
+  ALL.forEach(m=>{
+    if(!av[dk][m.name]?.cortes)return;
+    let lastAcum=0;
+    CORTES.forEach(c=>{const v=av[dk][m.name].cortes[c];if(v!=null&&v>lastAcum)lastAcum=v});
+    if(tr[dk]?.[m.name])tr[dk][m.name].met=lastAcum>=tr[dk][m.name].committed;
   });
   if(count===0){showToast("⚠️ No hay datos que guardar");return}
   await save("ec-avance",av);
