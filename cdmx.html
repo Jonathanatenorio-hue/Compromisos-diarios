@@ -754,11 +754,7 @@ function shareAvance(){
       poster.style.position="absolute";poster.style.left="-9999px";poster.style.zIndex="";
       canvas.toBlob(blob=>{
         const fname=`ExpertCell_Avance_${now.getDate()}-${now.getMonth()+1}_${(selCorte||"").replace(":","")}.png`;
-        if(navigator.share&&navigator.canShare){
-          const file=new File([blob],fname,{type:"image/png"});
-          if(navigator.canShare({files:[file]})){navigator.share({files:[file],title:"ExpertCell Avance"}).catch(()=>downloadBlob(blob,fname));return}
-        }
-        downloadBlob(blob,fname);
+        shareBlobOrDownload(blob,fname);
       },"image/png");
     }).catch(()=>{
       poster.style.position="absolute";poster.style.left="-9999px";
@@ -781,16 +777,7 @@ function screenshot(elementId, label){
     canvas.toBlob(blob=>{
       const now=new Date();
       const fname=`ExpertCell_${label}_${now.getDate()}-${now.getMonth()+1}-${now.getFullYear()}.png`;
-      if(navigator.share&&navigator.canShare){
-        const file=new File([blob],fname,{type:"image/png"});
-        if(navigator.canShare({files:[file]})){
-          navigator.share({files:[file],title:`ExpertCell ${label}`}).then(()=>{
-            showToast("✅ Compartido");
-          }).catch(()=>{downloadBlob(blob,fname)});
-          return;
-        }
-      }
-      downloadBlob(blob,fname);
+      shareBlobOrDownload(blob,fname);
     },"image/png");
   }).catch(()=>{
     el.style.background=origBg;el.style.padding=origPad;el.style.borderRadius=origRad;
@@ -800,7 +787,21 @@ function screenshot(elementId, label){
 function downloadBlob(blob,fname){
   const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=fname;
   document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
-  showToast("✅ Imagen descargada — comparte por WhatsApp");
+  showToast("✅ Imagen descargada");
+}
+function shareBlobOrDownload(blob,fname){
+  if(navigator.share&&navigator.canShare){
+    const file=new File([blob],fname,{type:"image/png"});
+    if(navigator.canShare({files:[file]})){
+      navigator.share({files:[file]}).then(()=>{
+        showToast("✅ Compartido");
+      }).catch(()=>{
+        // User cancelled — do nothing, don't download
+      });
+      return;
+    }
+  }
+  downloadBlob(blob,fname);
 }
 
 // ═══ TAB 3: TRACKER ═══
@@ -900,8 +901,7 @@ function shareTracker(){
       poster.style.position="absolute";poster.style.left="-9999px";
       canvas.toBlob(blob=>{
         const fname=`ExpertCell_Tracker_Sem${days[0].getDate()}-${days[0].getMonth()+1}.png`;
-        if(navigator.share&&navigator.canShare){const file=new File([blob],fname,{type:"image/png"});if(navigator.canShare({files:[file]})){navigator.share({files:[file]}).catch(()=>downloadBlob(blob,fname));return}}
-        downloadBlob(blob,fname);
+        shareBlobOrDownload(blob,fname);
       },"image/png");
     }).catch(()=>{poster.style.position="absolute";poster.style.left="-9999px";showToast("❌ Error")});
   },100);
@@ -1169,8 +1169,7 @@ function shareInforme(){
       poster.style.position="absolute";poster.style.left="-9999px";
       canvas.toBlob(blob=>{
         const fname=`ExpertCell_Informe_${MO_ES[infMonth+1]}_${infYear}.png`;
-        if(navigator.share&&navigator.canShare){const file=new File([blob],fname,{type:"image/png"});if(navigator.canShare({files:[file]})){navigator.share({files:[file]}).catch(()=>downloadBlob(blob,fname));return}}
-        downloadBlob(blob,fname);
+        shareBlobOrDownload(blob,fname);
       },"image/png");
     }).catch(()=>{poster.style.position="absolute";poster.style.left="-9999px";showToast("❌ Error")});
   },100);
